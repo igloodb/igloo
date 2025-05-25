@@ -1,0 +1,15 @@
+[package]
+name = "igloo"
+version = "0.1.0"
+edition = "2021"
+
+authors = ["Your Name <you@example.com>"]
+description = "A Rust-based data caching layer for Trino and Iceberg."
+license = "MIT"
+
+[dependencies]
+async-trait = "0.1.88"
+datafusion = "47.0.0"
+reqwest = { version = "0.12.15", features = ["blocking"] }
+tokio = { version = "1.45.1", features = ["full"] }
+tokio-postgres = "0.7.13"
