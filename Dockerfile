@@ -12,7 +12,7 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs
 
 # Now copy the real source code
 COPY . .
-RUN cargo build
+RUN cargo build --release
 
 # Create minimal runtime image
 FROM debian:bookworm-slim
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 WORKDIR /app
 
 # Only copy what’s needed
-COPY --from=builder /app/target/debug/igloo /app/igloo
+COPY --from=builder /app/target/release/igloo /app/igloo
 COPY dummy_iceberg_cdc ./dummy_iceberg_cdc
 
 CMD ["/app/igloo"]
