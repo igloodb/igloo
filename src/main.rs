@@ -4,6 +4,7 @@ mod query_engine;
 mod cache_layer;
 mod cdc_sync;
 mod datafusion_engine;
+mod adbc_postgres;
 
 pub mod postgres_table;
 
@@ -12,7 +13,8 @@ use cdc_sync::CdcListener;
 use datafusion_engine::DataFusionEngine;
 use tokio::runtime::Runtime;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // Initialize components
     let mut cache = Cache::new();
     let cdc = CdcListener::new("./dummy_iceberg_cdc");
@@ -31,6 +33,14 @@ fn main() {
         let result = rt.block_on(engine.query(query));
         cache.set(query, &result);
         println!("Cache miss, executed with DataFusion: {:?}", result);
+    }
+
+    // Connect to Postgres using ADBC and run a test query
+    let uri = "postgres://postgres:postgres@localhost:5432/mydb";
+    let sql = "SELECT 1 AS test_col";
+    match adbc_postgres::adbc_postgres_query_example(uri, sql).await {
+        Ok(_) => println!("ADBC test query succeeded!"),
+        Err(e) => eprintln!("ADBC test query failed: {}", e),
     }
 
     // Start CDC sync (in real app, this would be async/threaded)
