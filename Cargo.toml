@@ -8,12 +8,12 @@ description = "A Rust-based data caching layer for Trino and Iceberg."
 license = "MIT"
 
 [dependencies]
-arrow-adbc = { path = "arrow-adbc/rust" }
+# adbc-rs = { path = "adbc-rs/core" }
 arrow = "55.1.0"
 tokio = { version = "1.45.1", features = ["full"] }
 async-trait = "0.1.88"
 datafusion = "47.0.0"
 libloading = "0.8"
 reqwest = { version = "0.12.15", features = ["blocking"] }
-adbc_core = "0.18.0"
+adbc_core = { path = "adbc-rs/core", features = ["driver_manager"] }
 tokio-postgres = "0.7.13"

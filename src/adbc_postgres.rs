@@ -1,25 +1,32 @@
 // Arrow ADBC Postgres connection and query MVP in Rust
-use adbc_driver_postgresql::Connection;
-use adbc_core::{ConnectionOptions, Statement};
-use arrow::record_batch::RecordBatch;
-use arrow::array::{StringArray, Array};
-use std::sync::Arc;
+// NOTE: The Rust ADBC implementation does not provide a native Postgres driver crate.
+// This is a placeholder showing how you might use the generic ADBC API if/when a driver is available.
+// For now, this will not work out-of-the-box for Postgres, but demonstrates the intended structure.
+
+// Enable the driver_manager feature for adbc_core in Cargo.toml:
+// adbc_core = { version = "0.18.0", features = ["driver_manager"] }
+
+use adbc_core::driver_manager::ManagedDriver;
+use adbc_core::options::{AdbcVersion, OptionDatabase};
+use adbc_core::Connection as AdbcConnectionTrait;
+use adbc_core::Database as AdbcDatabaseTrait;
+use adbc_core::Statement as AdbcStatementTrait;
+use adbc_core::Driver;
+use arrow::array::{Array, StringArray};
+use arrow::record_batch::{RecordBatch, RecordBatchReader};
 
 pub async fn adbc_postgres_query_example(uri: &str, sql: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // Set up connection options
-    let mut options = ConnectionOptions::default();
-    options.set_uri(uri);
-    let mut conn = Connection::new();
-    conn.connect(&options).await?;
-    println!("Connected to Postgres via Arrow ADBC!");
-
-    // Prepare and execute query
-    let mut stmt = Statement::new(&mut conn);
-    stmt.set_sql_query(sql);
-    let mut reader = stmt.execute_query().await?;
-
-    // Fetch and print results
-    while let Some(batch) = reader.next().await? {
+    // Load the Postgres ADBC driver dynamically (ensure the .so/.dll is in your library path)
+    let mut driver = ManagedDriver::load_dynamic_from_name("adbc_driver_postgresql", None, AdbcVersion::V100)?;
+    let opts = [(OptionDatabase::Uri, uri.into())];
+    let mut database = driver.new_database_with_opts(opts)?;
+    let mut connection = database.new_connection()?;
+    let mut statement = connection.new_statement()?;
+    statement.set_sql_query(sql)?;
+    let mut reader = statement.execute()?;
+    let schema = reader.schema();
+    let batches: Result<Vec<RecordBatch>, _> = reader.collect();
+    for batch in batches? {
         print_arrow_batch(&batch);
     }
     Ok(())

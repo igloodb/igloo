@@ -35,7 +35,7 @@ async fn main() {
         println!("Cache miss, executed with DataFusion: {:?}", result);
     }
 
-    // Connect to Postgres using ADBC and run a test query
+    // Connect to Postgres using ADBC and run a test query (using Rust-native adbc_core)
     let uri = "postgres://postgres:postgres@localhost:5432/mydb";
     let sql = "SELECT 1 AS test_col";
     match adbc_postgres::adbc_postgres_query_example(uri, sql).await {
