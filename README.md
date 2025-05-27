@@ -1,12 +1,12 @@
 # 🍙 Igloo
 
-Igloo is a distributed SQL query engine and intelligent caching layer built in Rust. It uses Apache DataFusion for query execution and Apache Arrow for in-memory representation. Igloo caches query results and keeps them fresh using Change Data Capture (CDC) sourced from Apache Iceberg.
+Igloo is a distributed SQL query engine with an intelligent caching layer, built in Rust. It connects to external databases via ADBC drivers, leveraging DataFusion for query execution and Apache Arrow for in-memory data representation. Igloo caches query results and keeps them up to date using Change Data Capture (CDC) stored in the Iceberg format.
 
 
 ## 🏗️ How Igloo Works
 
 - **Data Querying:** Igloo uses ADBC drivers (via Rust FFI) to connect to external databases (e.g., PostgreSQL) and query data efficiently through Apache DataFusion. This enables high-performance, Arrow-native SQL execution across multiple sources.
-- **Materialized Views & Auto-Cache:** Apache Iceberg is leveraged to maintain materialized views and track data changes. This allows Igloo to automatically update cached query results and materialized views in response to underlying data changes, ensuring freshness and consistency.
+- **Materialized Views & Auto-Cache:** Apache Iceberg is leveraged to maintain materialized views and track data changes. This allows Igloo to update cached query results automatically and materialized views in response to underlying data changes, ensuring freshness and consistency.
 - **Smart Caching:** Query results are cached in memory (with pluggable backends planned), and cache invalidation/refresh is driven by Change Data Capture (CDC) events from Iceberg.
 
 ## 🧩 Architecture Overview
