@@ -23,8 +23,7 @@ pub async fn adbc_postgres_query_example(uri: &str, sql: &str) -> Result<(), Box
     let mut connection = database.new_connection()?;
     let mut statement = connection.new_statement()?;
     statement.set_sql_query(sql)?;
-    let mut reader = statement.execute()?;
-    let schema = reader.schema();
+    let reader = statement.execute()?;
     let batches: Result<Vec<RecordBatch>, _> = reader.collect();
     for batch in batches? {
         print_arrow_batch(&batch);

@@ -82,6 +82,29 @@ fn main() {
 cargo run
 ```
 
+## 🛠️ Environment Setup
+
+Igloo relies on ADBC C++ drivers (such as the PostgreSQL driver) via Rust's Foreign Function Interface (FFI), because native ADBC Rust drivers are still under implementation. This means you must have the appropriate C++ driver libraries available and properly configured in your environment.
+
+### 1. Set `LD_LIBRARY_PATH`
+
+Add the following to your shell profile or run before starting Igloo:
+
+```bash
+export LD_LIBRARY_PATH=/home/ubuntu/.local/share/mamba/pkgs/libstdcxx-15.1.0-h3f4de04_2/lib:/home/ubuntu/.local/share/mamba/pkgs/libadbc-driver-postgresql-1.6.0-h444fcbc_1/lib:$LD_LIBRARY_PATH
+```
+
+- Adjust the paths as needed for your system and installation method.
+- This is required for both running the main binary and for integration tests that use the ADBC PostgreSQL driver.
+
+### 2. Set `TEST_ADBC_POSTGRESQL_URI` (for tests)
+
+Integration tests require a valid PostgreSQL URI. Set it as follows:
+
+```bash
+export TEST_ADBC_POSTGRESQL_URI="postgresql://user:password@localhost:5432/dbname"
+```
+
 **Environment Setup**
 
 Ensure your local Parquet/Iceberg and Postgres paths are accessible in your config or .env.
