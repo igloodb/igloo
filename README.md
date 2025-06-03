@@ -111,6 +111,25 @@ Integration tests require a valid PostgreSQL URI. Set it as follows:
 export TEST_ADBC_POSTGRESQL_URI="postgresql://user:password@localhost:5432/dbname"
 ```
 
+### 3. Configure Igloo Environment Variables
+
+Igloo uses the following environment variables for its configuration:
+
+- `IGLOO_POSTGRES_URI`: Specifies the connection string for the PostgreSQL database.
+  - Default: `host=localhost user=postgres password=postgres dbname=mydb`
+- `IGLOO_PARQUET_PATH`: Defines the path to the directory containing Parquet files, typically used for Iceberg data.
+  - Default: `./dummy_iceberg_cdc/`
+- `IGLOO_CDC_PATH`: Sets the path for the Change Data Capture (CDC) listener to monitor for changes.
+  - Default: `./dummy_iceberg_cdc`
+
+Ensure these variables are set in your environment or a `.env` file if you need to override the default values. For example:
+
+```bash
+export IGLOO_POSTGRES_URI="postgres://myuser:mypassword@myhost:5432/mydatabase"
+export IGLOO_PARQUET_PATH="/path/to/your/parquet_files/"
+export IGLOO_CDC_PATH="/path/to/your/cdc_data/"
+```
+
 **Environment Setup**
 
 Ensure your local Parquet/Iceberg and Postgres paths are accessible in your config or .env.

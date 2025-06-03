@@ -8,6 +8,7 @@ mod adbc_postgres;
 
 pub mod postgres_table;
 
+use std::env;
 use cache_layer::Cache;
 use cdc_sync::CdcListener;
 use datafusion_engine::DataFusionEngine;
@@ -16,12 +17,13 @@ use datafusion_engine::DataFusionEngine;
 async fn main() {
     // Initialize components
     let mut cache = Cache::new();
-    let cdc = CdcListener::new("./dummy_iceberg_cdc");
+    let cdc_path = env::var("IGLOO_CDC_PATH").unwrap_or_else(|_| "./dummy_iceberg_cdc".to_string());
+    let cdc = CdcListener::new(&cdc_path);
 
     // DataFusion setup (async)
-    let parquet_path = "./dummy_iceberg_cdc/"; // Iceberg/Parquet dir
-    let postgres_conn = "host=localhost user=postgres password=postgres dbname=mydb";
-    let engine = DataFusionEngine::new(parquet_path, postgres_conn).await;
+    let parquet_path = env::var("IGLOO_PARQUET_PATH").unwrap_or_else(|_| "./dummy_iceberg_cdc/".to_string());
+    let postgres_conn_str = env::var("IGLOO_POSTGRES_URI").unwrap_or_else(|_| "host=localhost user=postgres password=postgres dbname=mydb".to_string());
+    let engine = DataFusionEngine::new(&parquet_path, &postgres_conn_str).await;
 
     // Example query: join between iceberg and postgres
     let query = "SELECT i.user_id, i.data, p.extra_info FROM iceberg i JOIN pg_table p ON i.user_id = p.user_id WHERE i.user_id = 42";
@@ -34,9 +36,9 @@ async fn main() {
     }
 
     // Connect to Postgres using ADBC and run a test query (using Rust-native adbc_core)
-    let uri = "postgres://postgres:postgres@localhost:5432/mydb";
+    let adbc_uri = env::var("IGLOO_POSTGRES_URI").unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/mydb".to_string());
     let sql = "SELECT 1 AS test_col";
-    match adbc_postgres::adbc_postgres_query_example(uri, sql).await {
+    match adbc_postgres::adbc_postgres_query_example(&adbc_uri, sql).await {
         Ok(_) => println!("ADBC test query succeeded!"),
         Err(e) => eprintln!("ADBC test query failed: {}", e),
     }
