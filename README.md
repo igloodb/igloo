@@ -41,6 +41,64 @@ flowchart LR
 - 🔄 **CDC Integration:** Monitors Iceberg CDC streams and invalidates/updates cache entries
 - 📦 **Data Format:** Apache Arrow in memory, Parquet on disk (from Iceberg)
 
+## 🚀 Running the Project
+
+There are two primary ways to run Igloo: using Docker Compose (recommended for ease of setup) or running it locally.
+
+### Using Docker Compose
+
+This is the simplest way to get Igloo and its PostgreSQL dependency running.
+
+1.  **Ensure Docker and Docker Compose are installed.**
+2.  From the project root, run:
+    ```sh
+    docker-compose up -d --build
+    ```
+    This command will:
+    *   Build the Igloo Docker image.
+    *   Start a PostgreSQL container.
+    *   Start the Igloo application container.
+    *   Run services in detached mode (`-d`).
+
+    The Igloo service's environment variables (like database connection strings and paths) are pre-configured in the `docker-compose.yml` file to work within the Docker network.
+
+3.  To view logs:
+    ```sh
+    docker-compose logs -f igloo
+    ```
+4.  To stop the services:
+    ```sh
+    docker-compose down
+    ```
+
+### Locally (without Docker)
+
+Running Igloo locally requires you to manage dependencies and environment setup yourself.
+
+1.  **Prerequisites:**
+    *   **Rust toolchain:** Install Rust (if not already installed) via [rustup.rs](https://rustup.rs/).
+    *   **Running PostgreSQL instance:** You need a PostgreSQL server running and accessible.
+    *   **Dummy data:** Ensure the dummy Parquet/Iceberg data (from `dummy_iceberg_cdc/`) is available at the location Igloo expects (see environment variable configuration below).
+    *   **ADBC Drivers:** Specific C++ ADBC drivers are needed. See the `LD_LIBRARY_PATH` details in the "🛠️ Environment Variable Reference" section.
+
+2.  **Configure Environment:**
+    *   Copy the example environment file:
+        ```sh
+        cp .env.example .env
+        ```
+    *   Edit the `.env` file to match your local setup, especially:
+        *   `DATABASE_URL` or `IGLOO_POSTGRES_URI` (point to your PostgreSQL instance).
+        *   `IGLOO_PARQUET_PATH` (path to your `dummy_iceberg_cdc/` directory).
+        *   `IGLOO_CDC_PATH` (path for CDC, usually same as `IGLOO_PARQUET_PATH` for this project).
+        *   Ensure `LD_LIBRARY_PATH` is correctly set in your shell environment or within the `.env` file if your tool supports it (e.g., using a dotenv-cli).
+
+3.  **Build and Run:**
+    *   From the project root, execute:
+        ```sh
+        cargo run
+        ```
+    This will compile and run the Igloo application.
+
 ## 🏗️ Example Code
 
 ```rust
@@ -81,39 +139,63 @@ fn main() {
 }
 ```
 
-## 🚀 Quick Start
+## 🛠️ Environment Variable Reference
 
-```sh
-# Build and run Igloo
-cargo run
-```
+Igloo's behavior is controlled by several environment variables. When running locally, these can be set in a `.env` file (by copying `.env.example`) or directly in your shell. When using Docker Compose, these are typically set within the `docker-compose.yml` file for the `igloo` service.
 
-## 🛠️ Environment Setup
+### General Configuration
 
-Igloo relies on ADBC C++ drivers (such as the PostgreSQL driver) via Rust's Foreign Function Interface (FFI), because native ADBC Rust drivers are still under implementation. This means you must have the appropriate C++ driver libraries available and properly configured in your environment.
+*   `DATABASE_URL`:
+    *   **Purpose:** The primary connection string for your PostgreSQL database. If set, Igloo prioritizes this over `IGLOO_POSTGRES_URI`. This is a commonly used standard variable name.
+    *   **Example (local):** `postgres://postgres:postgres@localhost:5432/mydb`
+    *   **Example (Docker):** `postgres://postgres:postgres@postgres:5432/mydb` (points to the `postgres` service in Docker)
 
-### 1. Set `LD_LIBRARY_PATH`
+*   `IGLOO_POSTGRES_URI`:
+    *   **Purpose:** Specifies the connection string for the PostgreSQL database if `DATABASE_URL` is not set.
+    *   **Default (in code):** `host=localhost user=postgres password=postgres dbname=mydb`
+    *   **Note:** The format for `DATABASE_URL` (URI scheme) is generally preferred over the keyword/value format, especially for broader compatibility.
 
-Add the following to your shell profile or run before starting Igloo:
+*   `IGLOO_PARQUET_PATH`:
+    *   **Purpose:** Defines the file system path to the directory containing Parquet files, which represent the Iceberg table data for this project.
+    *   **Default (in code):** `./dummy_iceberg_cdc/`
+    *   **Example (Docker):** `/app/dummy_iceberg_cdc/` (path inside the Igloo container)
 
-```bash
-export LD_LIBRARY_PATH=/home/ubuntu/.local/share/mamba/pkgs/libstdcxx-15.1.0-h3f4de04_2/lib:/home/ubuntu/.local/share/mamba/pkgs/libadbc-driver-postgresql-1.6.0-h444fcbc_1/lib:$LD_LIBRARY_PATH
-```
+*   `IGLOO_CDC_PATH`:
+    *   **Purpose:** Sets the file system path for the Change Data Capture (CDC) listener to monitor for changes. In this project, it's often the same as `IGLOO_PARQUET_PATH`.
+    *   **Default (in code):** `./dummy_iceberg_cdc`
+    *   **Example (Docker):** `/app/dummy_iceberg_cdc` (path inside the Igloo container)
 
-- Adjust the paths as needed for your system and installation method.
-- This is required for both running the main binary and for integration tests that use the ADBC PostgreSQL driver.
+### ADBC Driver Configuration (for Local Execution)
 
-### 2. Set `TEST_ADBC_POSTGRESQL_URI` (for tests)
+Igloo relies on ADBC C++ drivers (such as the PostgreSQL driver) via Rust's Foreign Function Interface (FFI). This is because native ADBC Rust drivers are still under active development. For local execution (not Docker), you must have these C++ driver libraries available and tell the system where to find them.
 
-Integration tests require a valid PostgreSQL URI. Set it as follows:
+*   `LD_LIBRARY_PATH` (Linux/macOS):
+    *   **Purpose:** This environment variable tells the dynamic linker where to find shared libraries (like the ADBC PostgreSQL driver) when the Igloo application starts. This is **essential** if you are running Igloo directly on your host machine without Docker.
+    *   **Example:**
+        ```bash
+        export LD_LIBRARY_PATH=/path/to/your/adbc_driver_libs:$LD_LIBRARY_PATH
+        ```
+    *   The specific paths depend on how and where you installed the ADBC driver libraries (e.g., via a package manager like Conda/Mamba, or compiled from source). The example path in previous README versions (`/home/ubuntu/.local/share/mamba/pkgs/...`) is specific to a particular Mamba installation. You'll need to find the `libadbc_driver_postgresql.so` (or `.dylib` on macOS) file and its dependencies on your system.
+    *   **Note:** This is not typically needed when running via Docker Compose, as the Docker image is built with the necessary libraries included and correctly pathed.
 
-```bash
-export TEST_ADBC_POSTGRESQL_URI="postgresql://user:password@localhost:5432/dbname"
-```
+### Test Configuration
 
-**Environment Setup**
+*   `TEST_ADBC_POSTGRESQL_URI` (for tests):
+    *   **Purpose:** Specifies the PostgreSQL connection URI specifically for running integration tests (e.g., via `cargo test`).
+    *   **Example:**
+        ```bash
+        export TEST_ADBC_POSTGRESQL_URI="postgresql://user:password@localhost:5432/dbname_test"
+        ```
+    *   Ensure this points to a database that can be used for testing (it might get cleaned or have specific test data).
 
-Ensure your local Parquet/Iceberg and Postgres paths are accessible in your config or .env.
+---
+*The old "Environment Setup" section's content has been reorganized and integrated above.*
+The following subsections were removed as their content is now part of the new structure:
+- "1. Set `LD_LIBRARY_PATH`" (merged into ADBC Driver Configuration)
+- "2. Set `TEST_ADBC_POSTGRESQL_URI` (for tests)" (merged into Test Configuration)
+- "3. Configure Igloo Environment Variables" (merged into General Configuration)
+The note "Ensure your local Parquet/Iceberg and Postgres paths are accessible in your config or .env." is now covered by the "Locally (without Docker)" subsection.
+---
 
 ## ✅ Features
 
