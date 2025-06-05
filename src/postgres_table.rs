@@ -1,9 +1,9 @@
 // src/postgres_table.rs
 use async_trait::async_trait;
 use datafusion::arrow::array::{
-    ArrayBuilder, ArrayRef, BooleanArray, Date32Array, Float32Array, Float64Array,
-    GenericBinaryArray, Int16Array, Int32Array, Int64Array, StringArray, TimestampNanosecondArray,
-};
+    ArrayRef, BooleanArray, Date32Array, Float32Array, Float64Array, GenericBinaryArray,
+    Int16Array, Int32Array, Int64Array, StringArray, TimestampNanosecondArray,
+}; // Removed ArrayBuilder
 use datafusion::arrow::datatypes::{DataType, Field, SchemaRef, TimeUnit};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
@@ -114,7 +114,8 @@ impl TableProvider for PostgresTable {
                 ($builder:expr, $pg_type:ty, $arrow_builder_type:ty) => {{
                     let mut builder = $builder;
                     for row in &rows {
-                        match row.try_get::<$usize, Option<$pg_type>>(col_idx) {
+                        match row.try_get::<usize, Option<$pg_type>>(col_idx) {
+                            // Corrected: $usize -> usize
                             Ok(Some(val)) => builder.append_value(val),
                             Ok(None) => builder.append_null(),
                             Err(e) => {
@@ -130,7 +131,8 @@ impl TableProvider for PostgresTable {
                 ($builder:expr, String, $arrow_builder_type:ty) => {{
                     let mut builder = $builder;
                     for row in &rows {
-                        match row.try_get::<$usize, Option<String>>(col_idx) {
+                        match row.try_get::<usize, Option<String>>(col_idx) {
+                            // Corrected: $usize -> usize
                             Ok(Some(val)) => builder.append_value(&val),
                             Ok(None) => builder.append_null(),
                             Err(e) => {
@@ -146,7 +148,8 @@ impl TableProvider for PostgresTable {
                 ($builder:expr, chrono::NaiveDateTime, $arrow_builder_type:ty) => {{
                     let mut builder = $builder;
                     for row in &rows {
-                        match row.try_get::<$usize, Option<chrono::NaiveDateTime>>(col_idx) {
+                        match row.try_get::<usize, Option<chrono::NaiveDateTime>>(col_idx) {
+                            // Corrected: $usize -> usize
                             Ok(Some(val)) => {
                                 builder.append_value(val.timestamp_nanos_opt().unwrap_or_default())
                             }
@@ -165,7 +168,8 @@ impl TableProvider for PostgresTable {
                     let mut builder = $builder;
                     let epoch = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
                     for row in &rows {
-                        match row.try_get::<$usize, Option<chrono::NaiveDate>>(col_idx) {
+                        match row.try_get::<usize, Option<chrono::NaiveDate>>(col_idx) {
+                            // Corrected: $usize -> usize
                             Ok(Some(val)) => builder
                                 .append_value(val.signed_duration_since(epoch).num_days() as i32),
                             Ok(None) => builder.append_null(),

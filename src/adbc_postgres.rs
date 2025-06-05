@@ -1,10 +1,7 @@
 // src/adbc_postgres.rs
 use adbc_core::driver_manager::ManagedDriver;
 use adbc_core::options::{AdbcVersion, OptionDatabase};
-use adbc_core::{
-    Connection as AdbcConnectionTrait, Database as AdbcDatabaseTrait, Driver,
-    Statement as AdbcStatementTrait,
-};
+// Removed unused AdbcConnectionTrait, AdbcDatabaseTrait, Driver, AdbcStatementTrait
 use arrow::array::{
     Array, BooleanArray, Date32Array, Float64Array, GenericBinaryArray, Int32Array, StringArray,
     TimestampNanosecondArray,
