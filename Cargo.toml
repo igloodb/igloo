@@ -16,7 +16,6 @@ datafusion = "39.0.0" # Downgraded for Rust 1.75.0 compatibility
 libloading = "0.8" # For FFI
 reqwest = { version = "0.11.27", features = ["blocking"] } # Downgraded for Rust 1.75.0 compatibility
 adbc_core = { version = "0.16.0", features = ["driver_manager"] } # Trying version 0.16.0 for Rust 1.75.0 compatibility
-tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4"] } # Postgres driver
 tracing = "0.1" # Structured logging framework
 tracing-subscriber = { version = "0.3", features = ["fmt"] } # Tracing subscriber
 thiserror = "1.0" # Error handling

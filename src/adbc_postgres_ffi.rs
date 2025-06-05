@@ -1,4 +1,9 @@
 // src/adbc_postgres_ffi.rs
+// Note: This file contains experimental, low-level FFI bindings directly to an ADBC C driver.
+// It is not currently used by the main Igloo query engine, which prefers `adbc_core`
+// for a higher-level, safer abstraction over ADBC drivers. This file is kept for
+// reference or potential future use in specific scenarios.
+
 use crate::errors::{IglooError, Result as IglooResult};
 use arrow::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
 use arrow::record_batch::RecordBatch;
