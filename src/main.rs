@@ -22,7 +22,9 @@ async fn main() {
 
     // DataFusion setup (async)
     let parquet_path = env::var("IGLOO_PARQUET_PATH").unwrap_or_else(|_| "./dummy_iceberg_cdc/".to_string());
-    let postgres_conn_str = env::var("IGLOO_POSTGRES_URI").unwrap_or_else(|_| "host=localhost user=postgres password=postgres dbname=mydb".to_string());
+    let postgres_conn_str = env::var("DATABASE_URL")
+        .or_else(|_| env::var("IGLOO_POSTGRES_URI"))
+        .unwrap_or_else(|_| "host=localhost user=postgres password=postgres dbname=mydb".to_string());
     let engine = DataFusionEngine::new(&parquet_path, &postgres_conn_str).await;
 
     // Example query: join between iceberg and postgres
@@ -36,7 +38,9 @@ async fn main() {
     }
 
     // Connect to Postgres using ADBC and run a test query (using Rust-native adbc_core)
-    let adbc_uri = env::var("IGLOO_POSTGRES_URI").unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/mydb".to_string());
+    let adbc_uri = env::var("DATABASE_URL")
+        .or_else(|_| env::var("IGLOO_POSTGRES_URI"))
+        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/mydb".to_string());
     let sql = "SELECT 1 AS test_col";
     match adbc_postgres::adbc_postgres_query_example(&adbc_uri, sql).await {
         Ok(_) => println!("ADBC test query succeeded!"),
