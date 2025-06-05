@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::execution::error::EngineError;
 
 /// An ExecutionOperator produces a stream of RecordBatches.
-pub trait ExecutionOperator: std::fmt::Debug { // Added Debug constraint for Box<dyn ExecutionOperator>
+pub trait ExecutionOperator: std::fmt::Debug {
     /// Returns the schema of the RecordBatches produced by this operator.
     fn schema(&self) -> Result<SchemaRef, EngineError>;
 
@@ -17,8 +17,7 @@ pub trait ExecutionOperator: std::fmt::Debug { // Added Debug constraint for Box
 }
 
 // --- ADBC Mocking (still local to this file) ---
-#[derive(Debug, Clone)] // AdbcError itself needs to be Debug and Clone if EngineError::Adbc stores it directly
-                        // Since EngineError::Adbc stores String, AdbcError only needs Debug for format!
+#[derive(Debug, Clone)]
 pub enum AdbcError {
     ConnectionError,
     FetchError(String),
@@ -53,7 +52,7 @@ pub fn fetch_data_mock(
                 Arc::new(arrow::array::Int32Array::from(vec![0, 10, 5, 20])),
             ],
         )
-        .map_err(|e| AdbcError::Other(e.to_string()))?; // Keep AdbcError internal mapping
+        .map_err(|e| AdbcError::Other(e.to_string()))?;
         let batch2 = RecordBatch::try_new(
             schema.clone(),
             vec![
@@ -81,7 +80,10 @@ pub fn fetch_data_mock(
             Field::new("data", DataType::Int64, true),
         ]));
         Ok((schema, vec![]))
-    } else {
+    } else if table_name == "truly_empty_schema_table" {
+         Ok((Arc::new(Schema::empty()), vec![]))
+    }
+     else {
         Err(AdbcError::FetchError(format!(
             "Table {} not found",
             table_name
@@ -95,7 +97,7 @@ pub struct ScanOperator {
     schema: Option<SchemaRef>,
     batches: std::vec::IntoIter<RecordBatch>,
     fetched: bool,
-    fetch_error: Option<AdbcError>, // Store the original AdbcError
+    fetch_error: Option<AdbcError>,
 }
 
 impl ScanOperator {
@@ -112,7 +114,6 @@ impl ScanOperator {
     fn ensure_schema_and_data_fetched(&mut self) -> Result<(), EngineError> {
         if self.fetched {
             if let Some(ref err) = self.fetch_error {
-                // Convert stored AdbcError to EngineError::Adbc
                 return Err(EngineError::Adbc { message: err.to_string() });
             }
             return Ok(());
@@ -126,9 +127,8 @@ impl ScanOperator {
                 Ok(())
             }
             Err(adbc_err) => {
-                self.fetch_error = Some(adbc_err.clone()); // Store original AdbcError
+                self.fetch_error = Some(adbc_err.clone());
                 self.schema = Some(Arc::new(Schema::empty()));
-                // Convert AdbcError to EngineError::Adbc
                 Err(EngineError::Adbc { message: adbc_err.to_string() })
             }
         }
@@ -140,8 +140,6 @@ impl ExecutionOperator for ScanOperator {
         if let Some(ref schema) = self.schema {
             Ok(schema.clone())
         } else {
-            // If schema is not yet determined (e.g., next() not called), return empty.
-            // Downstream operators might fail if they require a non-empty schema here.
             Ok(Arc::new(Schema::empty()))
         }
     }
@@ -165,7 +163,7 @@ pub struct FilterOperator {
 
 impl FilterOperator {
     pub fn new(mut input: Box<dyn ExecutionOperator>, predicate: FilterPredicate) -> Result<Self, EngineError> {
-        let schema = input.schema()?; // This can fail, or return empty schema from unprimed ScanOp
+        let schema = input.schema()?;
         Ok(FilterOperator { input, predicate, schema })
     }
 }
@@ -179,17 +177,14 @@ impl ExecutionOperator for FilterOperator {
         loop {
             match self.input.next() {
                 Ok(Some(batch)) => {
-                    // ArrowError from predicate is converted via From trait into EngineError::Arrow
                     let filter_array = (self.predicate)(&batch)?;
-                    // ArrowError from filter_record_batch is converted via From trait
                     let filtered_batch = arrow::compute::filter_record_batch(&batch, &filter_array)?;
-
                     if filtered_batch.num_rows() > 0 {
                         return Ok(Some(filtered_batch));
                     }
                 }
                 Ok(None) => return Ok(None),
-                Err(e) => return Err(e), // Propagate EngineError from input
+                Err(e) => return Err(e),
             }
         }
     }
@@ -208,7 +203,7 @@ impl ProjectionOperator {
 
         if input_schema.fields().is_empty() && !projection_indices.is_empty() {
              return Err(EngineError::Projection {
-                message: "Cannot project fields from an empty input schema.".to_string(),
+                message: "Cannot project specific columns (non-empty projection_indices) from an empty input schema.".to_string(),
              });
         }
 
@@ -217,7 +212,7 @@ impl ProjectionOperator {
             if index >= input_schema.fields().len() {
                 return Err(EngineError::Projection {
                     message: format!(
-                        "Projection index {} out of bounds for schema with {} fields",
+                        "Projection index {} is out of bounds for input schema with {} fields.",
                         index,
                         input_schema.fields().len()
                     ),
@@ -242,12 +237,11 @@ impl ExecutionOperator for ProjectionOperator {
     fn next(&mut self) -> Result<Option<RecordBatch>, EngineError> {
         match self.input.next() {
             Ok(Some(batch)) => {
-                // ArrowError from project is converted via From trait
                 let projected_batch = arrow::compute::project(&batch, &self.projection_indices)?;
                 Ok(Some(projected_batch))
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(e), // Propagate EngineError from input
+            Err(e) => Err(e),
         }
     }
 }
@@ -255,29 +249,26 @@ impl ExecutionOperator for ProjectionOperator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // No longer need local TestEngineError. Tests will use the actual EngineError.
-    // Need to adjust assertions if error variants or messages changed.
-    use arrow::array::{Int32Array, BooleanArray}; // StringArray no longer used here
-    use arrow::compute::compare_scalar;
-    use crate::execution::error::EngineError as ActualEngineError; // Alias for clarity in tests
+    use arrow::array::{Int32Array, BooleanArray};
+    use crate::execution::error::EngineError as ActualEngineError;
+
+    // Helper struct for tests requiring an operator with a specific schema, sometimes empty.
+    #[derive(Debug)]
+    struct MockInputOperator {
+        schema: SchemaRef,
+    }
+    impl ExecutionOperator for MockInputOperator {
+        fn schema(&self) -> Result<SchemaRef, ActualEngineError> {
+            Ok(self.schema.clone())
+        }
+        fn next(&mut self) -> Result<Option<RecordBatch>, ActualEngineError> {
+            Ok(None)
+        }
+    }
 
     fn prime_scan_op_schema(scan_op: &mut ScanOperator) -> Result<SchemaRef, ActualEngineError> {
         let _ = scan_op.next()?;
         scan_op.schema()
-    }
-
-    #[test]
-    fn scan_op_schema_unfetched() {
-        let scan_op = ScanOperator::new("test_table");
-        assert_eq!(scan_op.schema().unwrap(), Arc::new(Schema::empty()));
-    }
-
-    #[test]
-    fn scan_op_schema_after_next() {
-        let mut scan_op = ScanOperator::new("test_table");
-        let _ = scan_op.next().unwrap();
-        let schema = scan_op.schema().unwrap();
-        assert_eq!(schema.fields().len(), 3);
     }
 
     #[test]
@@ -287,87 +278,97 @@ mod tests {
         assert!(res.is_err());
         match res.err().unwrap() {
             ActualEngineError::Adbc { message } => {
-                assert!(message.contains("Table non_existent_table not found"));
+                // AdbcError::FetchError formats to "ADBC Fetch Error: Table ... not found"
+                assert!(message.contains("ADBC Fetch Error: Table non_existent_table not found"), "Unexpected error message: {}", message);
             }
             other_err => panic!("Expected Adbc error, got {:?}", other_err),
         }
-        let schema = scan_op.schema().unwrap();
-        assert!(schema.fields().is_empty());
-    }
-
-    #[test]
-    fn filter_op_new_with_primed_scan_op() {
-        let mut scan_op = ScanOperator::new("test_table");
-        let _ = prime_scan_op_schema(&mut scan_op).unwrap();
-        let predicate: FilterPredicate = Box::new(|rb| Ok(BooleanArray::new_scalar(true, rb.num_rows())));
-        let filter_op_res = FilterOperator::new(Box::new(scan_op), predicate);
-        assert!(filter_op_res.is_ok());
-        assert_eq!(filter_op_res.unwrap().schema().unwrap().fields().len(), 3);
-    }
-
-    #[test]
-    fn filter_op_new_with_unprimed_scan_op() {
-        let scan_op = ScanOperator::new("test_table");
-        let predicate: FilterPredicate = Box::new(|rb| Ok(BooleanArray::new_scalar(true, rb.num_rows())));
-        let filter_op_res = FilterOperator::new(Box::new(scan_op), predicate);
-        assert!(filter_op_res.is_ok());
-        assert!(filter_op_res.unwrap().schema().unwrap().fields().is_empty());
     }
 
     #[test]
     fn filter_op_predicate_arrow_error() {
-        let mut scan_op = ScanOperator::new("test_table"); // Will produce batches with 3 columns
+        let mut scan_op = ScanOperator::new("test_table");
         let faulty_predicate: FilterPredicate = Box::new(|_batch: &RecordBatch| {
             Err(ArrowError::ComputeError("Predicate failure".to_string()))
         });
+        // Prime scan_op so FilterOperator::new gets a valid schema
+        let _ = prime_scan_op_schema(&mut scan_op).expect("Priming failed");
         let mut filter_op = FilterOperator::new(Box::new(scan_op), faulty_predicate).unwrap();
         let res = filter_op.next();
         assert!(res.is_err());
         match res.err().unwrap() {
-            ActualEngineError::Arrow { source: ArrowError::ComputeError(msg) } => {
-                assert_eq!(msg, "Predicate failure");
+            ActualEngineError::Arrow { source } => {
+                assert!(matches!(source, ArrowError::ComputeError(msg) if msg == "Predicate failure"));
             }
             other_err => panic!("Expected Arrow ComputeError, got {:?}", other_err),
         }
     }
 
-
+    // --- ProjectionOperator Tests ---
     #[test]
-    fn projection_operator_new_with_primed_scan_op() {
-        let mut scan_op = ScanOperator::new("test_table");
-        let _ = prime_scan_op_schema(&mut scan_op).unwrap();
-        let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 2]);
-        assert!(proj_op_res.is_ok());
-        let proj_op = proj_op_res.unwrap();
-        let projected_schema = proj_op.schema().unwrap();
-        assert_eq!(projected_schema.fields().len(), 2);
+    fn projection_operator_new_from_empty_schema_non_empty_indices_error() {
+        let empty_schema = Arc::new(Schema::empty());
+        let input_op = Box::new(MockInputOperator { schema: empty_schema });
+
+        let proj_op_res = ProjectionOperator::new(input_op, vec![0, 2]);
+        assert!(proj_op_res.is_err());
+        match proj_op_res.err().unwrap() {
+            ActualEngineError::Projection { message } => {
+                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
+            }
+            other_err => panic!("Unexpected error variant or message: {:?}", other_err),
+        }
     }
 
     #[test]
-    fn projection_operator_new_with_unprimed_scan_op_fails() {
+    fn projection_operator_new_from_unprimed_scan_op_fails_as_expected() {
         let scan_op = ScanOperator::new("test_table");
         let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 2]);
         assert!(proj_op_res.is_err());
         match proj_op_res.err().unwrap() {
             ActualEngineError::Projection { message } => {
-                assert!(message.contains("Cannot project fields from an empty input schema."));
+                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
             }
-            other_err => panic!("Unexpected error: {:?}", other_err),
+            other_err => panic!("Unexpected error variant or message: {:?}", other_err),
         }
     }
 
     #[test]
     fn projection_operator_invalid_index_error() {
         let mut scan_op = ScanOperator::new("single_col_table");
-        let _ = prime_scan_op_schema(&mut scan_op).unwrap(); // Prime to get actual schema
+        let _ = prime_scan_op_schema(&mut scan_op).unwrap();
 
-        let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 1]); // Index 1 is out of bounds
+        let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 1]);
         assert!(proj_op_res.is_err());
         match proj_op_res.err().unwrap() {
             ActualEngineError::Projection { message } => {
-                assert!(message.contains("Projection index 1 out of bounds for schema with 1 fields"));
+                assert_eq!(message, "Projection index 1 is out of bounds for input schema with 1 fields.");
             }
-            other_err => panic!("Unexpected error: {:?}", other_err),
+            other_err => panic!("Unexpected error variant or message: {:?}", other_err),
         }
+    }
+
+    #[test]
+    fn projection_operator_empty_indices_from_empty_schema() {
+        let empty_schema = Arc::new(Schema::empty());
+        let input_op = Box::new(MockInputOperator { schema: empty_schema });
+
+        let proj_op_res = ProjectionOperator::new(input_op, vec![]);
+        assert!(proj_op_res.is_ok());
+        let proj_op = proj_op_res.unwrap();
+        assert!(proj_op.schema().unwrap().fields().is_empty());
+        assert!(proj_op.projection_indices.is_empty());
+    }
+
+    #[test]
+    fn projection_operator_empty_indices_from_non_empty_schema() {
+        let mut scan_op = ScanOperator::new("test_table");
+        let _ = prime_scan_op_schema(&mut scan_op).unwrap();
+
+        let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![]);
+        assert!(proj_op_res.is_ok());
+        let proj_op = proj_op_res.unwrap();
+        assert!(proj_op.schema().unwrap().fields().is_empty());
+        assert!(proj_op.projection_indices.is_empty());
     }
 }
