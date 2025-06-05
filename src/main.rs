@@ -31,11 +31,7 @@ struct AddResult {
 }
 
 fn actual_add_function(args: AddArgs) -> AddResult {
-    log::info!(
-        "actual_add_function called with a={}, b={}",
-        args.a,
-        args.b
-    );
+    log::info!("actual_add_function called with a={}, b={}", args.a, args.b);
     AddResult {
         value: args.a + args.b,
     }
@@ -55,7 +51,7 @@ struct ComplexTaskResult {
 // Synchronous version of actual_complex_task for the demo wrapper:
 fn actual_complex_task_sync(
     args: ComplexTaskArgs,
-) -> std::result.Result<ComplexTaskResult, compute::ComputeError> {
+) -> std::result::Result<ComplexTaskResult, compute::ComputeError> {
     log::info!(
         "actual_complex_task_sync '{}' called, will 'sleep' for {}ms",
         args.name,
@@ -64,10 +60,7 @@ fn actual_complex_task_sync(
     // Simulate blocking sleep for sync demo
     std::thread::sleep(Duration::from_millis(args.delay_ms));
     if args.name == "fail_me" {
-        log::warn!(
-            "actual_complex_task_sync '{}' is about to fail.",
-            args.name
-        );
+        log::warn!("actual_complex_task_sync '{}' is about to fail.", args.name);
         Err(compute::ComputeError::ExecutionFailed(
             "Task failed as per 'fail_me' input".to_string(),
         ))
@@ -79,7 +72,7 @@ fn actual_complex_task_sync(
     }
 }
 
-async fn run_compute_layer_demo() -> std::result.Result<(), compute::ComputeError> {
+async fn run_compute_layer_demo() -> std::result::Result<(), compute::ComputeError> {
     log::info!("--- Starting Compute Layer Demo ---");
 
     // 1. Instantiate LocalTaskScheduler
@@ -173,7 +166,10 @@ async fn run_compute_layer_demo() -> std::result.Result<(), compute::ComputeErro
             if let compute::ComputeError::ExecutionFailed(msg) = e {
                 assert!(msg.contains("Task failed as per 'fail_me' input"));
             } else {
-                log::error!("'complex_task_fail' failed with unexpected error type: {}", e);
+                log::error!(
+                    "'complex_task_fail' failed with unexpected error type: {}",
+                    e
+                );
                 return Err(e);
             }
         }

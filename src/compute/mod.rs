@@ -2,8 +2,8 @@
 pub mod api;
 pub mod errors;
 pub mod registry;
-pub mod scheduler;
-pub mod rpc; // Added
+pub mod rpc;
+pub mod scheduler; // Added
 
 pub use api::{ComputeService, TaskDefinition, TaskFuture, TaskResult};
 pub use errors::ComputeError;

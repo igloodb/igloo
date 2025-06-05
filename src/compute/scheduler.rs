@@ -52,7 +52,10 @@ impl LocalTaskScheduler {
                         }
                     };
 
-                    debug!("{} received task: {}", worker_id, scheduled_task.task_def.task_id);
+                    debug!(
+                        "{} received task: {}",
+                        worker_id, scheduled_task.task_def.task_id
+                    );
                     let task_def = scheduled_task.task_def;
                     let result_sender = scheduled_task.result_sender;
 
@@ -122,8 +125,7 @@ impl ComputeService for LocalTaskScheduler {
             args: serialized_args,
         };
 
-        let (result_sender, result_receiver) =
-            oneshot::channel::<Result<Vec<u8>, ComputeError>>();
+        let (result_sender, result_receiver) = oneshot::channel::<Result<Vec<u8>, ComputeError>>();
 
         let scheduled_task = ScheduledTask {
             task_def,
@@ -151,31 +153,47 @@ mod tests {
     // use tokio::time::sleep; // Not strictly needed for these tests
 
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-    struct SchedulerTestArgs { id: u32, val: String }
+    struct SchedulerTestArgs {
+        id: u32,
+        val: String,
+    }
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-    struct SchedulerTestRet { processed_val: String }
+    struct SchedulerTestRet {
+        processed_val: String,
+    }
 
     fn scheduler_test_func(args: SchedulerTestArgs) -> Result<SchedulerTestRet, ComputeError> {
         if args.id == 0 {
             Err(ComputeError::ExecutionFailed("ID cannot be 0".to_string()))
         } else {
-            Ok(SchedulerTestRet { processed_val: format!("{}-processed-{}", args.val, args.id) })
+            Ok(SchedulerTestRet {
+                processed_val: format!("{}-processed-{}", args.val, args.id),
+            })
         }
     }
 
     async fn setup_scheduler(num_workers: usize) -> LocalTaskScheduler {
         let scheduler = LocalTaskScheduler::new(num_workers, 10); // queue_depth of 10
         let wrapped_func = FunctionRegistry::wrap_fn(scheduler_test_func);
-        scheduler.register_function("test_func".to_string(), wrapped_func).await.unwrap();
+        scheduler
+            .register_function("test_func".to_string(), wrapped_func)
+            .await
+            .unwrap();
         scheduler
     }
 
     #[tokio::test]
     async fn scheduler_submit_and_get_result_success() {
         let scheduler = setup_scheduler(1).await;
-        let args = SchedulerTestArgs { id: 1, val: "data".to_string() };
+        let args = SchedulerTestArgs {
+            id: 1,
+            val: "data".to_string(),
+        };
 
-        let future: TaskFuture<SchedulerTestRet> = scheduler.submit("test_func".to_string(), args.clone()).await.unwrap();
+        let future: TaskFuture<SchedulerTestRet> = scheduler
+            .submit("test_func".to_string(), args.clone())
+            .await
+            .unwrap();
         let result = future.await.unwrap();
 
         assert_eq!(result.processed_val, "data-processed-1");
@@ -184,9 +202,15 @@ mod tests {
     #[tokio::test]
     async fn scheduler_handles_function_execution_error() {
         let scheduler = setup_scheduler(1).await;
-        let args = SchedulerTestArgs { id: 0, val: "fail_data".to_string() }; // Will cause error in scheduler_test_func
+        let args = SchedulerTestArgs {
+            id: 0,
+            val: "fail_data".to_string(),
+        }; // Will cause error in scheduler_test_func
 
-        let future: TaskFuture<SchedulerTestRet> = scheduler.submit("test_func".to_string(), args).await.unwrap();
+        let future: TaskFuture<SchedulerTestRet> = scheduler
+            .submit("test_func".to_string(), args)
+            .await
+            .unwrap();
         match future.await {
             Err(ComputeError::ExecutionFailed(msg)) => assert_eq!(msg, "ID cannot be 0"),
             res => panic!("Expected ExecutionFailed error, got {:?}", res),
@@ -196,9 +220,15 @@ mod tests {
     #[tokio::test]
     async fn scheduler_handles_function_not_found() {
         let scheduler = setup_scheduler(1).await;
-        let args = SchedulerTestArgs { id: 1, val: "some_data".to_string() };
+        let args = SchedulerTestArgs {
+            id: 1,
+            val: "some_data".to_string(),
+        };
 
-        let future: TaskFuture<SchedulerTestRet> = scheduler.submit("non_existent_func".to_string(), args).await.unwrap();
+        let future: TaskFuture<SchedulerTestRet> = scheduler
+            .submit("non_existent_func".to_string(), args)
+            .await
+            .unwrap();
         match future.await {
             Err(ComputeError::FunctionNotFound(id)) => assert_eq!(id, "non_existent_func"),
             res => panic!("Expected FunctionNotFound error, got {:?}", res),
@@ -210,10 +240,17 @@ mod tests {
         let scheduler = setup_scheduler(2).await; // Use 2 workers
         let mut futures = Vec::new();
 
-        for i in 1..=5 { // Submit 5 tasks
-            let args = SchedulerTestArgs { id: i, val: format!("task_val_{}", i) };
+        for i in 1..=5 {
+            // Submit 5 tasks
+            let args = SchedulerTestArgs {
+                id: i,
+                val: format!("task_val_{}", i),
+            };
             // Ensure submit is awaited if it's async, or handle the Result if it's sync
-            let future: TaskFuture<SchedulerTestRet> = scheduler.submit("test_func".to_string(), args).await.unwrap();
+            let future: TaskFuture<SchedulerTestRet> = scheduler
+                .submit("test_func".to_string(), args)
+                .await
+                .unwrap();
             futures.push(future);
         }
 
@@ -226,7 +263,11 @@ mod tests {
         // Check that all tasks completed and results are as expected (order might vary)
         for i in 1..=5 {
             let expected_val = format!("task_val_{}-processed-{}", i, i);
-            assert!(results.iter().any(|r| r.processed_val == expected_val), "Result not found for id {}", i);
+            assert!(
+                results.iter().any(|r| r.processed_val == expected_val),
+                "Result not found for id {}",
+                i
+            );
         }
     }
 }

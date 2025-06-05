@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true) // Generate client code
         .compile(
             &["proto/compute.proto"], // Source .proto files
-            &["proto"],                // Include path for .proto files
+            &["proto"],               // Include path for .proto files
         )?;
     Ok(())
 }

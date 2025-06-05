@@ -29,7 +29,10 @@ pub struct TaskFuture<R: DeserializeOwned + Send + 'static> {
 }
 
 impl<R: DeserializeOwned + Send + 'static> TaskFuture<R> {
-    pub fn new(task_id: String, receiver: oneshot::Receiver<Result<Vec<u8>, ComputeError>>) -> Self {
+    pub fn new(
+        task_id: String,
+        receiver: oneshot::Receiver<Result<Vec<u8>, ComputeError>>,
+    ) -> Self {
         Self {
             task_id,
             receiver,
@@ -45,16 +48,21 @@ impl<R: DeserializeOwned + Send + 'static> TaskFuture<R> {
 impl<R: DeserializeOwned + Send + 'static> Future for TaskFuture<R> {
     type Output = Result<R, ComputeError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
         match Pin::new(&mut self.receiver).poll(cx) {
             std::task::Poll::Ready(Ok(Ok(serialized_value))) => {
                 // Received serialized value, now deserialize
                 match bincode::deserialize(&serialized_value) {
                     Ok(deserialized_value) => std::task::Poll::Ready(Ok(deserialized_value)),
-                    Err(e) => std::task::Poll::Ready(Err(ComputeError::DeserializationError(format!(
-                        "Failed to deserialize result for task {}: {}",
-                        self.task_id, e
-                    )))),
+                    Err(e) => {
+                        std::task::Poll::Ready(Err(ComputeError::DeserializationError(format!(
+                            "Failed to deserialize result for task {}: {}",
+                            self.task_id, e
+                        ))))
+                    }
                 }
             }
             std::task::Poll::Ready(Ok(Err(compute_err))) => {
@@ -84,7 +92,11 @@ pub trait ComputeService: Send + Sync {
     /// # Returns
     /// A `TaskFuture<R>` which can be awaited to get the deserialized result `R`
     /// or a `ComputeError`.
-    async fn submit<Args, R>(&self, function_id: String, args: Args) -> Result<TaskFuture<R>, ComputeError>
+    async fn submit<Args, R>(
+        &self,
+        function_id: String,
+        args: Args,
+    ) -> Result<TaskFuture<R>, ComputeError>
     where
         Args: Serialize + Send + Sync + 'static,
         R: DeserializeOwned + Send + 'static;
@@ -119,7 +131,10 @@ mod tests {
 
     #[test]
     fn task_result_serialization_success() {
-        let data = TestData { x: 10, s: "hello".to_string() };
+        let data = TestData {
+            x: 10,
+            s: "hello".to_string(),
+        };
         let task_res = TaskResult {
             task_id: "task_123".to_string(),
             value: Some(bincode::serialize(&data).unwrap()),
@@ -129,7 +144,8 @@ mod tests {
         let deserialized: TaskResult = bincode::deserialize(&serialized).unwrap();
         assert_eq!(task_res.task_id, deserialized.task_id);
         assert_eq!(task_res.error, deserialized.error);
-        let deserialized_data: TestData = bincode::deserialize(&deserialized.value.unwrap()).unwrap();
+        let deserialized_data: TestData =
+            bincode::deserialize(&deserialized.value.unwrap()).unwrap();
         assert_eq!(data, deserialized_data);
     }
 
@@ -152,7 +168,10 @@ mod tests {
         let (tx, rx) = oneshot::channel::<Result<Vec<u8>, ComputeError>>();
         let future: TaskFuture<TestData> = TaskFuture::new("test_task".to_string(), rx);
 
-        let data = TestData { x: 42, s: "success".to_string() };
+        let data = TestData {
+            x: 42,
+            s: "success".to_string(),
+        };
         let serialized_data = bincode::serialize(&data).unwrap();
         tx.send(Ok(serialized_data)).unwrap();
 

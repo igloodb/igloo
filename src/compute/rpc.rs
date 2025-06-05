@@ -11,5 +11,8 @@ pub mod generated {
 pub use generated::{
     compute_executor_client::ComputeExecutorClient, // Client
     compute_executor_server::{ComputeExecutor, ComputeExecutorServer}, // Server traits
-    TaskOutcome, TaskRequest, SubmitTaskResponse, GetResultRequest // Messages
+    GetResultRequest,                               // Messages
+    SubmitTaskResponse,
+    TaskOutcome,
+    TaskRequest,
 };
