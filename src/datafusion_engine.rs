@@ -52,15 +52,15 @@ impl DataFusionEngine {
         let pg_provider = Arc::new(PostgresTable::new(postgres_conn_str, "my_pg_table", pg_schema.clone()));
         ctx.register_table("pg_table", pg_provider)?; // DFError -> IglooError::DataFusion
 
-        // log::info!("DataFusion context initialized with Iceberg and Postgres tables.");
+        log::info!(target: "datafusion_engine", "DataFusion context initialized with Iceberg and Postgres tables.");
         Ok(Self { ctx })
     }
 
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>> {
-        // log::debug!("Executing SQL query in DataFusion: {}", sql);
+        log::debug!(target: "datafusion_engine", "Executing SQL query in DataFusion: {}", sql);
         let df = self.ctx.sql(sql).await?; // DFError -> IglooError::DataFusion
         let results = df.collect().await?;  // DFError -> IglooError::DataFusion
-        // log::debug!("Query executed successfully. Number of batches: {}", results.len());
+        log::debug!(target: "datafusion_engine", "Query executed successfully. Number of batches: {}", results.len());
         Ok(results)
     }
 }

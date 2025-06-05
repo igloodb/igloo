@@ -16,23 +16,23 @@ impl Cache {
         // and configured appropriately by the main application.
         // If this module were to be used more independently, direct logging setup
         // or passing a logger might be considered.
-        log::debug!("Initializing new in-memory cache instance.");
+        log::debug!(target: "igloo_cache", "Initializing new in-memory cache instance.");
         Self { store: HashMap::new() }
     }
 
     pub fn get(&self, query: &str) -> Option<&String> {
-        // log::trace!("Cache GET attempt for query: {}", query); // trace is more appropriate for frequent calls
+        log::trace!(target: "igloo_cache", "Cache GET attempt for query: {}", query);
         let result = self.store.get(query);
         if result.is_some() {
-            // log::debug!("Cache HIT for query: {}", query);
+            log::debug!(target: "igloo_cache", "Cache HIT for query: {}", query);
         } else {
-            // log::debug!("Cache MISS for query: {}", query);
+            log::debug!(target: "igloo_cache", "Cache MISS for query: {}", query);
         }
         result
     }
 
     pub fn set(&mut self, query: &str, result: &str) {
-        // log::debug!("Cache SET for query: {}. Result length: {}", query, result.len());
+        log::debug!(target: "igloo_cache", "Cache SET for query: {}. Result length: {}", query, result.len());
         self.store.insert(query.to_string(), result.to_string());
     }
 }

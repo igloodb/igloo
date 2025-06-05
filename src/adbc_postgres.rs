@@ -70,49 +70,55 @@ pub async fn adbc_postgres_query_example(uri: &str, sql: &str) -> Result<()> {
 
 fn print_arrow_batch(batch: &RecordBatch) -> Result<()> {
     if batch.num_rows() == 0 {
-        // Using log::info instead of println for consistency if this becomes part of library code
-        log::info!(target: "adbc_print", "Batch is empty.");
+        log::info!(target: "adbc_print", "Batch is empty."); // Changed from debug to info for empty batch
         return Ok(());
     }
     let schema = batch.schema();
-    println!("--- Batch ({} rows) ---", batch.num_rows());
-    for col_idx in 0..batch.num_columns() {
-        let col_name = schema.field(col_idx).name();
-        let data_type = schema.field(col_idx).data_type();
-        print!("Column '{}' ({}): [", col_name, data_type);
-        let array = batch.column(col_idx);
+    log::debug!(target: "adbc_print", "--- Batch ({} rows) ---", batch.num_rows());
 
-        for row_idx in 0..array.len() {
+    // Print column headers
+    let header_line: String = schema.fields().iter()
+        .map(|field| format!("{} ({})", field.name(), field.data_type()))
+        .collect::<Vec<String>>()
+        .join(" | ");
+    log::debug!(target: "adbc_print", "{}", header_line);
+
+    // Print rows
+    for row_idx in 0..batch.num_rows() {
+        let mut row_str = String::new();
+        for col_idx in 0..batch.num_columns() {
+            let array = batch.column(col_idx);
             if array.is_null(row_idx) {
-                print!("NULL");
+                row_str.push_str("NULL");
             } else {
+                let data_type = array.data_type(); // Get data_type from array itself
                 match data_type {
-                    DataType::Int32 => print!("{}", array.as_any().downcast_ref::<Int32Array>().unwrap().value(row_idx)),
-                    DataType::Float64 => print!("{}", array.as_any().downcast_ref::<Float64Array>().unwrap().value(row_idx)),
-                    DataType::Utf8 => print!("'{}'", array.as_any().downcast_ref::<StringArray>().unwrap().value(row_idx)),
+                    DataType::Int32 => row_str.push_str(&format!("{}", array.as_any().downcast_ref::<Int32Array>().unwrap().value(row_idx))),
+                    DataType::Float64 => row_str.push_str(&format!("{}", array.as_any().downcast_ref::<Float64Array>().unwrap().value(row_idx))),
+                    DataType::Utf8 => row_str.push_str(&format!("'{}'", array.as_any().downcast_ref::<StringArray>().unwrap().value(row_idx))),
                     DataType::Timestamp(TimeUnit::Nanosecond, tz_opt) => {
                         let val = array.as_any().downcast_ref::<TimestampNanosecondArray>().unwrap().value(row_idx);
-                        // Naive formatting for now
-                        print!("{}ns{}", val, tz_opt.as_ref().map_or("".to_string(), |s| format!(" ({})", s)));
+                        row_str.push_str(&format!("{}ns{}", val, tz_opt.as_ref().map_or("".to_string(), |s| format!(" ({})", s))));
                     }
-                    DataType::Boolean => print!("{}", array.as_any().downcast_ref::<BooleanArray>().unwrap().value(row_idx)),
-                    DataType::Date32 => print!("{}d", array.as_any().downcast_ref::<Date32Array>().unwrap().value(row_idx)), // days since epoch
+                    DataType::Boolean => row_str.push_str(&format!("{}", array.as_any().downcast_ref::<BooleanArray>().unwrap().value(row_idx))),
+                    DataType::Date32 => row_str.push_str(&format!("{}d", array.as_any().downcast_ref::<Date32Array>().unwrap().value(row_idx))),
                     DataType::Binary => {
                         let val = array.as_any().downcast_ref::<GenericBinaryArray<i32>>().unwrap().value(row_idx);
-                        print!("[binary data: {} bytes]", val.len());
+                        row_str.push_str(&format!("[binary data: {} bytes]", val.len()));
                     }
                     other => {
-                        log::warn!(target: "adbc_print", "Unsupported data type for printing: {:?}", other);
-                        print!("[unsupported: {:?}]", other);
+                        // This addresses the "unsupported data types" part of the plan step
+                        log::warn!(target: "adbc_print", "Unsupported data type for printing: {:?}. Displaying as [unsupported]", other);
+                        row_str.push_str(&format!("[unsupported: {:?}]", other));
                     }
                 }
             }
-            if row_idx < array.len() - 1 {
-                print!(", ");
+            if col_idx < batch.num_columns() - 1 {
+                row_str.push_str(" | ");
             }
         }
-        println!("]");
+        log::debug!(target: "adbc_print", "{}", row_str);
     }
-    println!("--- End Batch ---");
+    log::debug!(target: "adbc_print", "--- End Batch ---");
     Ok(())
 }
