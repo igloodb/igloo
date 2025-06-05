@@ -1,17 +1,17 @@
 // src/main.rs
+mod adbc_postgres;
 mod cache_layer;
 mod cdc_sync;
 mod datafusion_engine;
-mod adbc_postgres;
 mod errors; // Added
 pub mod postgres_table;
 
-use std::env;
 use cache_layer::Cache;
 use cdc_sync::CdcListener;
+use datafusion::arrow::util::pretty::pretty_format_batches;
 use datafusion_engine::DataFusionEngine;
 use errors::Result; // Using our project's Result type alias
-use datafusion::arrow::util::pretty::pretty_format_batches; // Added
+use std::env; // Added
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,10 +27,13 @@ async fn main() -> Result<()> {
     let cdc = CdcListener::new(&cdc_path); // Assuming this doesn't return Result for now
 
     log::info!("Initializing DataFusionEngine...");
-    let parquet_path = env::var("IGLOO_PARQUET_PATH").unwrap_or_else(|_| "./dummy_iceberg_cdc/".to_string());
+    let parquet_path =
+        env::var("IGLOO_PARQUET_PATH").unwrap_or_else(|_| "./dummy_iceberg_cdc/".to_string());
     let postgres_conn_str = env::var("DATABASE_URL")
         .or_else(|_| env::var("IGLOO_POSTGRES_URI"))
-        .unwrap_or_else(|_| "host=localhost user=postgres password=postgres dbname=mydb".to_string());
+        .unwrap_or_else(|_| {
+            "host=localhost user=postgres password=postgres dbname=mydb".to_string()
+        });
 
     // Assumes DataFusionEngine::new and ::query are updated to return errors::Result (IglooError)
     let engine = DataFusionEngine::new(&parquet_path, &postgres_conn_str).await?;
@@ -64,7 +67,7 @@ async fn main() -> Result<()> {
                     }
                 };
                 cache.set(query, &result_str); // result_str is now String
-                // log::info!("Result for query '{}':\n{}", query, result_str);
+                                               // log::info!("Result for query '{}':\n{}", query, result_str);
                 println!("Cache miss. Executed with DataFusion:\n{}", result_str);
             }
             Err(e) => {

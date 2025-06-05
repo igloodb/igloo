@@ -1,16 +1,19 @@
 // src/adbc_postgres.rs
 use adbc_core::driver_manager::ManagedDriver;
 use adbc_core::options::{AdbcVersion, OptionDatabase};
-use adbc_core::{Connection as AdbcConnectionTrait, Database as AdbcDatabaseTrait, Statement as AdbcStatementTrait, Driver};
+use adbc_core::{
+    Connection as AdbcConnectionTrait, Database as AdbcDatabaseTrait, Driver,
+    Statement as AdbcStatementTrait,
+};
 use arrow::array::{
-    Array, Int32Array, Float64Array, StringArray, TimestampNanosecondArray,
-    BooleanArray, Date32Array, GenericBinaryArray
+    Array, BooleanArray, Date32Array, Float64Array, GenericBinaryArray, Int32Array, StringArray,
+    TimestampNanosecondArray,
 };
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::{RecordBatch, RecordBatchReader}; // RecordBatchReader is a trait now
 
 // Using our project's error types
-use crate::errors::{Result, IglooError};
+use crate::errors::{IglooError, Result};
 
 pub async fn adbc_postgres_query_example(uri: &str, sql: &str) -> Result<()> {
     log::info!(target: "adbc_example", "Attempting ADBC query. URI: {}, SQL: {}", uri, sql);
@@ -18,7 +21,8 @@ pub async fn adbc_postgres_query_example(uri: &str, sql: &str) -> Result<()> {
     // Load the Postgres ADBC driver dynamically
     // Ensure the .so/.dylib/.dll is in your LD_LIBRARY_PATH/DYLD_LIBRARY_PATH/PATH
     // Using V110 which is common for newer drivers.
-    let mut driver = ManagedDriver::load_dynamic_from_name("adbc_driver_postgresql", None, AdbcVersion::V110)?;
+    let mut driver =
+        ManagedDriver::load_dynamic_from_name("adbc_driver_postgresql", None, AdbcVersion::V110)?;
 
     let opts = [(OptionDatabase::Uri, uri.into())];
     let mut database = driver.new_database_with_opts(opts)?;
@@ -37,7 +41,8 @@ pub async fn adbc_postgres_query_example(uri: &str, sql: &str) -> Result<()> {
     log::info!(target: "adbc_example", "ADBC statement executed. Reading results for SQL: {}", sql);
 
     // The reader is an AdbcRecordBatchReader which itself is a RecordBatchReader (iterator)
-    let collected_batches_result: std::result::Result<Vec<RecordBatch>, arrow::error::ArrowError> = reader.collect();
+    let collected_batches_result: std::result::Result<Vec<RecordBatch>, arrow::error::ArrowError> =
+        reader.collect();
 
     match collected_batches_result {
         Ok(collected_batches) => {
@@ -87,18 +92,67 @@ fn print_arrow_batch(batch: &RecordBatch) -> Result<()> {
                 print!("NULL");
             } else {
                 match data_type {
-                    DataType::Int32 => print!("{}", array.as_any().downcast_ref::<Int32Array>().unwrap().value(row_idx)),
-                    DataType::Float64 => print!("{}", array.as_any().downcast_ref::<Float64Array>().unwrap().value(row_idx)),
-                    DataType::Utf8 => print!("'{}'", array.as_any().downcast_ref::<StringArray>().unwrap().value(row_idx)),
+                    DataType::Int32 => print!(
+                        "{}",
+                        array
+                            .as_any()
+                            .downcast_ref::<Int32Array>()
+                            .unwrap()
+                            .value(row_idx)
+                    ),
+                    DataType::Float64 => print!(
+                        "{}",
+                        array
+                            .as_any()
+                            .downcast_ref::<Float64Array>()
+                            .unwrap()
+                            .value(row_idx)
+                    ),
+                    DataType::Utf8 => print!(
+                        "'{}'",
+                        array
+                            .as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap()
+                            .value(row_idx)
+                    ),
                     DataType::Timestamp(TimeUnit::Nanosecond, tz_opt) => {
-                        let val = array.as_any().downcast_ref::<TimestampNanosecondArray>().unwrap().value(row_idx);
+                        let val = array
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap()
+                            .value(row_idx);
                         // Naive formatting for now
-                        print!("{}ns{}", val, tz_opt.as_ref().map_or("".to_string(), |s| format!(" ({})", s)));
+                        print!(
+                            "{}ns{}",
+                            val,
+                            tz_opt
+                                .as_ref()
+                                .map_or("".to_string(), |s| format!(" ({})", s))
+                        );
                     }
-                    DataType::Boolean => print!("{}", array.as_any().downcast_ref::<BooleanArray>().unwrap().value(row_idx)),
-                    DataType::Date32 => print!("{}d", array.as_any().downcast_ref::<Date32Array>().unwrap().value(row_idx)), // days since epoch
+                    DataType::Boolean => print!(
+                        "{}",
+                        array
+                            .as_any()
+                            .downcast_ref::<BooleanArray>()
+                            .unwrap()
+                            .value(row_idx)
+                    ),
+                    DataType::Date32 => print!(
+                        "{}d",
+                        array
+                            .as_any()
+                            .downcast_ref::<Date32Array>()
+                            .unwrap()
+                            .value(row_idx)
+                    ), // days since epoch
                     DataType::Binary => {
-                        let val = array.as_any().downcast_ref::<GenericBinaryArray<i32>>().unwrap().value(row_idx);
+                        let val = array
+                            .as_any()
+                            .downcast_ref::<GenericBinaryArray<i32>>()
+                            .unwrap()
+                            .value(row_idx);
                         print!("[binary data: {} bytes]", val.len());
                     }
                     other => {

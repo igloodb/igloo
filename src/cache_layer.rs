@@ -17,7 +17,9 @@ impl Cache {
         // If this module were to be used more independently, direct logging setup
         // or passing a logger might be considered.
         log::debug!("Initializing new in-memory cache instance.");
-        Self { store: HashMap::new() }
+        Self {
+            store: HashMap::new(),
+        }
     }
 
     pub fn get(&self, query: &str) -> Option<&String> {

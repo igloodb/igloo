@@ -1,10 +1,12 @@
 // src/datafusion_engine.rs
-use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::arrow::datatypes::Schema as ArrowSchema; // Alias
+use datafusion::arrow::datatypes::{DataType, Field};
+use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl};
-use datafusion::prelude::*; // Includes SessionContext, DataFrame, etc.
-use datafusion::arrow::record_batch::RecordBatch; // For query return type
+use datafusion::datasource::listing::{
+    ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+};
+use datafusion::prelude::*; // Includes SessionContext, DataFrame, etc. // For query return type
 
 use std::sync::Arc;
 
@@ -49,7 +51,10 @@ impl DataFusionEngine {
         // Ensure PostgresTable::new is compatible with error handling or map its error.
         // Assuming PostgresTable::new does not return a Result for now, or its errors are not handled here.
         // If PostgresTable::new can fail in a way that needs to be an IglooError, it should return Result.
-        let pg_provider = Arc::new(PostgresTable::new(postgres_conn_str, "my_pg_table", pg_schema.clone()));
+        // Corrected call to use asynchronous try_new:
+        let pg_provider = Arc::new(
+            PostgresTable::try_new(postgres_conn_str, "my_pg_table", pg_schema.clone()).await?,
+        );
         ctx.register_table("pg_table", pg_provider)?; // DFError -> IglooError::DataFusion
 
         // log::info!("DataFusion context initialized with Iceberg and Postgres tables.");
@@ -59,8 +64,8 @@ impl DataFusionEngine {
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>> {
         // log::debug!("Executing SQL query in DataFusion: {}", sql);
         let df = self.ctx.sql(sql).await?; // DFError -> IglooError::DataFusion
-        let results = df.collect().await?;  // DFError -> IglooError::DataFusion
-        // log::debug!("Query executed successfully. Number of batches: {}", results.len());
+        let results = df.collect().await?; // DFError -> IglooError::DataFusion
+                                           // log::debug!("Query executed successfully. Number of batches: {}", results.len());
         Ok(results)
     }
 }
