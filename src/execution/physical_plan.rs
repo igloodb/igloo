@@ -185,9 +185,6 @@ mod tests {
         }
     }
 
-    // Helper to extract the predicate function for "id_gt_1" for direct testing
-    // This is somewhat fragile as it duplicates the predicate construction logic.
-    // A better design might involve a predicate registry or factory.
     fn get_id_gt_1_predicate_fn() -> FilterPredicate {
         Box::new(|batch: &RecordBatch| {
             const EXPECTED_COL_INDEX: usize = 0;
@@ -220,7 +217,7 @@ mod tests {
     #[test]
     fn test_filter_predicate_cast_error_handling() {
         let schema_wrong_type = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Utf8, false), // Correct name "id", but wrong type
+            Field::new("id", DataType::Utf8, false),
         ]));
         let batch_wrong_type = RecordBatch::try_new(
             schema_wrong_type.clone(),
@@ -233,12 +230,20 @@ mod tests {
             .expect("FilterOperator creation failed");
 
         let result = filter_op.next();
-        assert!(result.is_err());
-        match result.err().unwrap() {
+        let actual_error = result.err().expect("Expected an error from filter_op.next()");
+
+        match actual_error {
             ActualEngineError::Arrow { source } => {
-                assert!(matches!(&source, ArrowError::CastError(msg) if msg == "Predicate 'id_gt_1': Failed to downcast column #0 ('id') to Int32Array. Actual type: Utf8, Expected: Int32."), "Unexpected error: {:?}", source);
+                assert!(
+                    matches!(
+                        &source,
+                        ArrowError::CastError(msg) if msg == "Predicate 'id_gt_1': Failed to downcast column #0 ('id') to Int32Array. Actual type: Utf8, Expected: Int32."
+                    ),
+                    "Unexpected ArrowError variant or message. Expected CastError with specific message, got: {:?}",
+                    source
+                );
             }
-            e => panic!("Expected EngineError::Arrow with CastError, got {:?}", e),
+            other_error => panic!("Expected EngineError::Arrow with CastError, but got: {:?}", other_error),
         }
     }
 
@@ -258,12 +263,20 @@ mod tests {
             .expect("FilterOperator creation failed");
 
         let result = filter_op.next();
-        assert!(result.is_err());
-        match result.err().unwrap() {
+        let actual_error = result.err().expect("Expected an error from filter_op.next()");
+
+        match actual_error {
             ActualEngineError::Arrow { source } => {
-                assert!(matches!(&source, ArrowError::SchemaError(msg) if msg == "Predicate 'id_gt_1': Expected column #0 to be named 'id', but found 'identifier'."), "Unexpected error: {:?}", source);
+                assert!(
+                    matches!(
+                        &source,
+                        ArrowError::SchemaError(msg) if msg == "Predicate 'id_gt_1': Expected column #0 to be named 'id', but found 'identifier'."
+                    ),
+                    "Unexpected ArrowError variant or message. Expected SchemaError for name mismatch, got: {:?}",
+                    source
+                );
             }
-            e => panic!("Expected EngineError::Arrow with SchemaError, got {:?}", e),
+            other_error => panic!("Expected EngineError::Arrow with SchemaError for name mismatch, but got: {:?}", other_error),
         }
     }
 
@@ -278,12 +291,20 @@ mod tests {
             .expect("FilterOperator creation failed");
 
         let result = filter_op.next();
-        assert!(result.is_err());
-        match result.err().unwrap() {
+        let actual_error = result.err().expect("Expected an error from filter_op.next()");
+
+        match actual_error {
             ActualEngineError::Arrow { source } => {
-                assert!(matches!(&source, ArrowError::SchemaError(msg) if msg == "Predicate 'id_gt_1': Batch has only 0 columns, expected column 'id' at index 0."), "Unexpected error: {:?}", source);
+                assert!(
+                    matches!(
+                        &source,
+                        ArrowError::SchemaError(msg) if msg == "Predicate 'id_gt_1': Batch has only 0 columns, expected column 'id' at index 0."
+                    ),
+                    "Unexpected ArrowError variant or message. Expected SchemaError for insufficient columns, got: {:?}",
+                    source
+                );
             }
-            e => panic!("Expected EngineError::Arrow with SchemaError, got {:?}", e),
+            other_error => panic!("Expected EngineError::Arrow with SchemaError for insufficient columns, but got: {:?}", other_error),
         }
     }
 
@@ -299,13 +320,16 @@ mod tests {
             projection_indices: vec![2, 0],
         };
         let build_result = build_physical_plan(logical_plan);
-        assert!(build_result.is_err());
-        match build_result.err().unwrap() {
-            ActualEngineError::Projection { message } => {
-                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
-            }
-            e => panic!("Expected Projection error, got {:?}", e),
-        }
+        let actual_error = build_result.err().expect("Expected build_physical_plan to fail");
+
+        assert!(
+            matches!(
+                actual_error,
+                ActualEngineError::Projection { ref message } if message == "Cannot project specific columns (non-empty projection_indices) from an empty input schema."
+            ),
+            "Unexpected error variant or message. Expected Projection error, got: {:?}",
+            actual_error
+        );
     }
 
     #[test]
@@ -317,29 +341,33 @@ mod tests {
             projection_indices: vec![0, 10],
         };
         let build_result = build_physical_plan(logical_plan);
-        assert!(build_result.is_err());
-        match build_result.err().unwrap() {
-            ActualEngineError::Projection { message } => {
-                // This error occurs because the input schema (from unprimed scan) is empty.
-                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
-            }
-            e => panic!("Expected Projection error, got {:?}", e),
-        }
+        let actual_error = build_result.err().expect("Expected build_physical_plan to fail");
+
+        assert!(
+            matches!(
+                actual_error,
+                ActualEngineError::Projection { ref message } if message == "Cannot project specific columns (non-empty projection_indices) from an empty input schema."
+            ),
+            "Unexpected error variant or message. Expected Projection error due to empty schema, got: {:?}",
+            actual_error
+        );
     }
 
     #[test]
     fn test_build_invalid_projection_indices_on_primed_scan() {
-        // This test is about ProjectionOperator::new directly, not build_physical_plan
         let mut scan_op = ScanOperator::new("test_table");
-        let _ = scan_op.next().unwrap(); // Prime it, so it has a schema (3 fields)
+        let _ = scan_op.next().unwrap();
 
-        let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 10]); // Index 10 is out of bounds
-        assert!(proj_op_res.is_err());
-        match proj_op_res.err().unwrap() {
-            ActualEngineError::Projection { message } => {
-                assert_eq!(message, "Projection index 10 is out of bounds for input schema with 3 fields.");
-            }
-            e => panic!("Expected Projection error, got {:?}", e),
-        }
+        let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 10]);
+        let actual_error = proj_op_res.err().expect("Expected ProjectionOperator::new to fail");
+
+        assert!(
+            matches!(
+                actual_error,
+                ActualEngineError::Projection { ref message } if message == "Projection index 10 is out of bounds for input schema with 3 fields."
+            ),
+            "Unexpected error variant or message. Expected Projection error for out of bounds index, got: {:?}",
+            actual_error
+        );
     }
 }

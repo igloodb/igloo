@@ -69,12 +69,9 @@ mod tests {
                 if batch.schema().fields().is_empty() {
                     return Ok(BooleanArray::new_scalar(false, batch.num_rows()));
                 }
-                 // This predicate assumes column 0 is Int32. A more robust test predicate
-                 // would include the name and type checks like in physical_plan.rs,
-                 // but for this specific test (filter all), a simple always-false based on data is okay.
                 let ids = batch.column(0).as_any().downcast_ref::<Int32Array>()
                     .ok_or_else(|| ArrowError::SchemaError("Test predicate expected Int32 for column 0".into()))?;
-                compute::gt_scalar(ids, 100_i32) // Filters all from test_table
+                compute::gt_scalar(ids, 100_i32)
             })
         );
         assert!(filter_op_manual_res.is_ok());
@@ -92,55 +89,64 @@ mod tests {
         };
         let physical_plan = build_physical_plan(logical_plan).expect("Build should succeed (ScanOp::new is not fallible)");
         let result = execute_query(physical_plan);
+        let err = result.err().unwrap();
 
-        assert!(result.is_err());
-        match result.err().unwrap() {
-            ActualEngineError::Adbc { message } => {
-                // The AdbcError::FetchError Display impl prepends "ADBC Fetch Error: "
-                assert!(message.eq("ADBC Fetch Error: Table non_existent_table not found"), "Unexpected error message: {}", message);
-            }
-            e => panic!("Expected Adbc error, got {:?}", e),
-        }
+        assert!(
+            matches!(
+                err,
+                ActualEngineError::Adbc { ref message } if message == "ADBC Fetch Error: Table non_existent_table not found"
+            ),
+            "Unexpected error variant or message. Expected Adbc error with specific message, got: {:?}",
+            err
+        );
     }
 
     #[test]
     fn test_execute_filter_predicate_error() {
         let logical_plan = LogicalPlan::Filter {
             input: Box::new(LogicalPlan::Scan {
-                table_name: "single_col_table".to_string(), // Has "col_a"
+                table_name: "single_col_table".to_string(),
             }),
-            predicate_expr: "id_gt_1".to_string(), // Predicate expects "id" at col 0
+            predicate_expr: "id_gt_1".to_string(),
         };
         let physical_plan = build_physical_plan(logical_plan).expect("Build should succeed");
         let result = execute_query(physical_plan);
+        let err = result.err().unwrap();
 
-        assert!(result.is_err());
-        match result.err().unwrap() {
+        match err {
             ActualEngineError::Arrow { source } => {
-                // Check specific ArrowError variant and message from predicate
-                assert!(matches!(&source, ArrowError::SchemaError(msg) if msg == "Predicate 'id_gt_1': Expected column #0 to be named 'id', but found 'col_a'."), "Unexpected error: {:?}", source);
+                assert!(
+                    matches!(
+                        &source,
+                        ArrowError::SchemaError(msg) if msg == "Predicate 'id_gt_1': Expected column #0 to be named 'id', but found 'col_a'."
+                    ),
+                    "Unexpected ArrowError variant or message. Expected SchemaError with specific message, got: {:?}",
+                    source
+                );
             }
-            e => panic!("Expected Arrow error from predicate, got {:?}", e),
+            _ => panic!("Expected EngineError::Arrow, but got different error variant: {:?}", err),
         }
     }
 
     #[test]
     fn test_execute_projection_build_error_due_to_unprimed_schema() {
         let logical_plan = LogicalPlan::Projection {
-            input: Box::new(LogicalPlan::Scan { // Scan will be unprimed in build_physical_plan
+            input: Box::new(LogicalPlan::Scan {
                 table_name: "test_table".to_string(),
             }),
             projection_indices: vec![2, 0, 1],
         };
-        // Error occurs during build_physical_plan, not execute_query
         let build_result = build_physical_plan(logical_plan);
-        assert!(build_result.is_err());
-        match build_result.err().unwrap() {
-            ActualEngineError::Projection{ message } => {
-                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
-            }
-            e => panic!("Expected Projection error, got {:?}", e),
-        }
+        let err = build_result.err().unwrap();
+
+        assert!(
+            matches!(
+                err,
+                ActualEngineError::Projection{ ref message } if message == "Cannot project specific columns (non-empty projection_indices) from an empty input schema."
+            ),
+            "Unexpected error variant or message. Expected Projection error with specific message, got: {:?}",
+            err
+        );
     }
 
     #[test]
