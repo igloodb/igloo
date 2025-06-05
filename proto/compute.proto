@@ -1,0 +1,41 @@
+// proto/compute.proto
+syntax = "proto3";
+
+package compute_rpc; // Package name for generated Rust code
+
+// Message for submitting a new task
+message TaskRequest {
+    string function_id = 1; // Identifier for the function to execute
+    bytes args = 2;         // Serialized arguments for the function
+}
+
+// Message for the response after submitting a task
+message SubmitTaskResponse {
+    string task_id = 1;     // Unique ID for the submitted task
+}
+
+// Message for requesting the result of a task
+message GetResultRequest {
+    string task_id = 1;     // ID of the task whose result is requested
+}
+
+// Message representing the outcome of a task
+message TaskOutcome {
+    string task_id = 1;     // ID of the task
+    oneof result {
+        bytes value = 2;    // Serialized successful result value
+        string error = 3;   // Error message if the task failed
+    }
+}
+
+// gRPC service definition for the compute executor
+service ComputeExecutor {
+    // Submits a task for execution
+    rpc SubmitTask (TaskRequest) returns (SubmitTaskResponse);
+
+    // Retrieves the result of a previously submitted task
+    // This implies tasks results are stored and retrievable by ID.
+    // For a streaming or push-based model, this might be different,
+    // but for a simple get, this is fine.
+    rpc GetResult (GetResultRequest) returns (TaskOutcome);
+}
