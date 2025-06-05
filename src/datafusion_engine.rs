@@ -13,11 +13,35 @@ use std::sync::Arc;
 use crate::errors::{IglooError, Result}; // Using project's error types
 use crate::postgres_table::PostgresTable; // Assuming path is correct
 
+/// Provides a DataFusion query execution engine.
+///
+/// `DataFusionEngine` is the main entry point for setting up tables (e.g., from Parquet files, PostgreSQL)
+/// and executing SQL queries against them using the DataFusion query engine.
 pub struct DataFusionEngine {
     pub ctx: SessionContext,
 }
 
 impl DataFusionEngine {
+    /// Creates a new `DataFusionEngine` and registers tables.
+    ///
+    /// This constructor initializes a DataFusion `SessionContext` and registers two tables:
+    /// 1.  An 'iceberg' table: Reads Parquet files from the specified `parquet_path`.
+    ///     It assumes a schema with `user_id` (Int64) and `data` (Utf8).
+    /// 2.  A 'pg_table': Connects to a PostgreSQL database using the ADBC driver
+    ///     via the `postgres_conn_str` (ADBC URI). It assumes a schema with
+    ///     `user_id` (Int64) and `extra_info` (Utf8).
+    ///
+    /// # Arguments
+    ///
+    /// * `parquet_path`: Filesystem path to the directory containing Parquet files for the 'iceberg' table.
+    /// * `postgres_conn_str`: ADBC connection string (URI) for the PostgreSQL database.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IglooError` if there's an issue setting up the tables, such as
+    /// path parsing errors, DataFusion errors during table registration, or issues
+    /// initializing the `PostgresTable` (e.g., invalid connection string format, though
+    /// actual connection attempt is deferred to query time).
     pub async fn new(parquet_path: &str, postgres_conn_str: &str) -> Result<Self> {
         let ctx = SessionContext::new();
 
@@ -53,7 +77,7 @@ impl DataFusionEngine {
         // If PostgresTable::new can fail in a way that needs to be an IglooError, it should return Result.
         // Corrected call to use asynchronous try_new:
         let pg_provider = Arc::new(
-            PostgresTable::try_new(postgres_conn_str, "my_pg_table", pg_schema.clone()).await?,
+            PostgresTable::try_new(postgres_conn_str, "my_pg_table", pg_schema.clone())?,
         );
         ctx.register_table("pg_table", pg_provider)?; // DFError -> IglooError::DataFusion
 
@@ -61,6 +85,22 @@ impl DataFusionEngine {
         Ok(Self { ctx })
     }
 
+    /// Executes a SQL query against the registered tables.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql`: The SQL query string to execute.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a `Vec<RecordBatch>` if the query is successful.
+    /// Each `RecordBatch` represents a chunk of the query result in Arrow format.
+    ///
+    /// # Errors
+    ///
+    /// Returns `IglooError` if any error occurs during query parsing, planning,
+    /// execution, or if there are issues with the underlying data sources (e.g.,
+    /// ADBC communication errors with PostgreSQL, file I/O errors for Parquet).
     pub async fn query(&self, sql: &str) -> Result<Vec<RecordBatch>> {
         // log::debug!("Executing SQL query in DataFusion: {}", sql);
         let df = self.ctx.sql(sql).await?; // DFError -> IglooError::DataFusion

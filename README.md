@@ -213,6 +213,16 @@ The note "Ensure your local Parquet/Iceberg and Postgres paths are accessible in
 - 📊 Metrics (e.g., Prometheus, OpenTelemetry)
 - 📦 Optional persistent cache backend (e.g., RocksDB, Redis)
 
+## Phase 1 Complete: Local Query Engine with PostgreSQL (ADBC)
+
+The foundational phase of IglooDB is complete! We now have a single-node query engine capable of executing SQL queries against PostgreSQL databases.
+
+Key features include:
+*   **DataFusion Core**: Leverages Apache DataFusion for robust SQL parsing, logical and physical planning, and Arrow-native execution.
+*   **ADBC for PostgreSQL**: Utilizes the Apache Arrow DataBase Connectivity (ADBC) standard to connect to PostgreSQL. This allows for efficient data retrieval directly into Apache Arrow format.
+*   **Basic Rust API**: A simple Rust API (`DataFusionEngine`) is available to submit SQL queries and receive results as Arrow `RecordBatch`es.
+
+The engine can be tested using the example in `src/main.rs`, which demonstrates querying a PostgreSQL table (via ADBC) and joining it with data from Parquet files.
 
 ## 🤝 Contributing
 

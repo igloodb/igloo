@@ -27,18 +27,28 @@ async fn main() -> Result<()> {
     let cdc = CdcListener::new(&cdc_path); // Assuming this doesn't return Result for now
 
     log::info!("Initializing DataFusionEngine...");
+    // Configure paths and connection strings for DataFusionEngine.
+    // IGLOO_PARQUET_PATH: Path to the directory containing Parquet files for the 'iceberg' table.
+    // DATABASE_URL or IGLOO_POSTGRES_URI: ADBC URI for the PostgreSQL connection for the 'pg_table'.
     let parquet_path =
         env::var("IGLOO_PARQUET_PATH").unwrap_or_else(|_| "./dummy_iceberg_cdc/".to_string());
     let postgres_conn_str = env::var("DATABASE_URL")
         .or_else(|_| env::var("IGLOO_POSTGRES_URI"))
         .unwrap_or_else(|_| {
+            // Default basic libpq-style connection string if not set via environment variables.
+            // Note: For ADBC, a URI like "postgresql://user:pass@host:port/dbname" is typically expected.
+            // This default might need adjustment if a pure ADBC URI is strictly required by the driver
+            // and it doesn't fall back to parsing libpq strings.
             "host=localhost user=postgres password=postgres dbname=mydb".to_string()
         });
 
-    // Assumes DataFusionEngine::new and ::query are updated to return errors::Result (IglooError)
+    // Initialize the DataFusionEngine. This sets up the 'iceberg' table (from Parquet)
+    // and 'pg_table' (connected to PostgreSQL via ADBC).
     let engine = DataFusionEngine::new(&parquet_path, &postgres_conn_str).await?;
     log::info!("DataFusionEngine initialized successfully.");
 
+    // Example query: Joins the Parquet-based 'iceberg' table with the ADBC-backed 'pg_table'.
+    // The 'pg_table' now transparently uses ADBC for its data access through DataFusionEngine.
     let query = "SELECT i.user_id, i.data, p.extra_info FROM iceberg i JOIN pg_table p ON i.user_id = p.user_id WHERE i.user_id = 42";
 
     if let Some(cached_result_str) = cache.get(query) {
@@ -83,15 +93,19 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Connect to Postgres using ADBC and run a test query
+    // Direct ADBC Driver Health Check (PostgreSQL)
+    // This section demonstrates a direct call to the ADBC PostgreSQL driver,
+    // bypassing the DataFusionEngine. It's useful as a standalone test to ensure
+    // the ADBC driver itself is correctly configured and can connect to PostgreSQL.
+    // Uses the same environment variables (DATABASE_URL or IGLOO_POSTGRES_URI) for the ADBC URI.
     let adbc_uri = env::var("DATABASE_URL")
         .or_else(|_| env::var("IGLOO_POSTGRES_URI"))
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/mydb".to_string());
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/mydb".to_string()); // Default ADBC URI
     let sql_adbc_test = "SELECT 1 AS test_col";
 
-    // Assumes adbc_postgres_query_example is updated to return errors::Result<()>
+    // Execute the direct ADBC query example.
     adbc_postgres::adbc_postgres_query_example(&adbc_uri, sql_adbc_test).await?;
-    log::info!(target: "igloo_main", uri = %adbc_uri, sql = sql_adbc_test, "ADBC test query succeeded!");
+    log::info!(target: "igloo_main", uri = %adbc_uri, sql = sql_adbc_test, "Direct ADBC PostgreSQL health check query succeeded!");
 
     log::info!("Starting CDC sync...");
     cdc.sync(&mut cache); // Assuming this doesn't return Result for now
