@@ -432,10 +432,13 @@ mod tests {
        );
        // Check for key parts of the InList debug output
        assert!(
-           error_message.contains("column_b") && error_message.contains("Number(\"1\", false)") && error_message.contains("SingleQuotedString(\"test_val\")") && error_message.contains("negated: false"),
-           "Error message for IN list did not contain expected components: {}",
-           error_message
-       );
+            error_message.contains("column_b")
+                && error_message.contains("Number(\"1\", false)")
+                && error_message.contains("SingleQuotedString(\"test_val\")")
+                && error_message.contains("negated: false"),
+            "Error message for IN list did not contain expected components: {}. Expected parts: column_b, Number(\"1\", false), SingleQuotedString(\"test_val\"), negated: false",
+            error_message
+        );
    }
 
    #[test]
@@ -451,9 +454,12 @@ mod tests {
            error_message
        );
        assert!(
-           error_message.contains("column_b") && error_message.contains("Number(\"1\", false)") && error_message.contains("Number(\"2\", false)") && error_message.contains("negated: true"),
-           "Error message for NOT IN list did not contain expected components: {}",
-           error_message
-       );
+            error_message.contains("column_b")
+                && error_message.contains("Number(\"1\", false)")
+                && error_message.contains("Number(\"2\", false)")
+                && error_message.contains("negated: true"),
+            "Error message for NOT IN list did not contain expected components: {}. Expected parts: column_b, Number(\"1\", false), Number(\"2\", false), negated: true",
+            error_message
+        );
    }
 }
