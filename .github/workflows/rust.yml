@@ -16,11 +16,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Debug Rust Environment
-      run: |
-        rustc --version
-        cargo --version
-        cargo tree
     - name: Check formatting
       run: cargo fmt --all -- --check
     - name: Run Clippy
