@@ -15,7 +15,7 @@ async-trait = "0.1.88"
 datafusion = "47.0.0" # Core query engine
 libloading = "0.8" # For FFI
 reqwest = { version = "0.12.15", features = ["blocking"] } # HTTP client, if needed
-adbc_core = { path = "adbc-rs/core", features = ["driver_manager"] } # ADBC core library
+adbc_core = "0.18.0"
 tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4"] } # Postgres driver
 tracing = "0.1" # Structured logging framework
 tracing-subscriber = { version = "0.3", features = ["fmt"] } # Tracing subscriber
