@@ -45,6 +45,15 @@ pub enum IglooError {
 
     #[error("Row does not contain field: {0}")]
     MissingField(String),
+
+    #[error("Compute layer error: {0}")]
+    ComputeError(String),
+}
+
+impl From<crate::compute::ComputeError> for IglooError {
+    fn from(err: crate::compute::ComputeError) -> Self {
+        IglooError::ComputeError(err.to_string())
+    }
 }
 
 pub type Result<T> = std::result::Result<T, IglooError>;
