@@ -2026,6 +2026,7 @@ dependencies = [
  "icu_locid",
  "icu_normalizer 1.5.0",
  "icu_properties 1.5.1",
+ "icu_provider 1.5.0",
  "libloading",
  "log",
  "native-tls",

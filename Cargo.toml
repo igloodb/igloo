@@ -32,3 +32,4 @@ icu_properties = "1.2.0" # Pinning version for Rust 1.75.0 compatibility (relate
 native-tls = "0.2.11" # Pinning version for Rust 1.75.0 compatibility (related to reqwest)
 icu_normalizer = "1.2.0" # Pinning version for Rust 1.75.0 compatibility (related to chrono-tz)
 icu_locid = "1.2.0" # Pinning version for Rust 1.75.0 compatibility (related to chrono-tz)
+icu_provider = "1.2.0" # Pinning ICU provider to align with other ICU 1.2.0 components.
