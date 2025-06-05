@@ -9,13 +9,20 @@ license = "MIT"
 
 [dependencies]
 # adbc-rs = { path = "adbc-rs/core" }
-arrow = "55.1.0"
-tokio = { version = "1.45.1", features = ["full"] }
+arrow = "55.1.0" # DataFusion dependency, version aligned
+tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread"] } # Specific features
 async-trait = "0.1.88"
-datafusion = "47.0.0"
-libloading = "0.8"
-reqwest = { version = "0.12.15", features = ["blocking"] }
-adbc_core = { path = "adbc-rs/core", features = ["driver_manager"] }
-tokio-postgres = "0.7.13"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt"] }
+datafusion = "47.0.0" # Core query engine
+libloading = "0.8" # For FFI
+reqwest = { version = "0.12.15", features = ["blocking"] } # HTTP client, if needed
+adbc_core = { path = "adbc-rs/core", features = ["driver_manager"] } # ADBC core library
+tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4"] } # Postgres driver
+tracing = "0.1" # Structured logging framework
+tracing-subscriber = { version = "0.3", features = ["fmt"] } # Tracing subscriber
+thiserror = "1.0" # Error handling
+url = "2.5.2" # For url::ParseError in IglooError
+log = "0.4.22" # Logging facade
+env_logger = "0.11.3" # Logger implementation
+scopeguard = "1.2.0" # RAII guard
+chrono = "0.4.38" # Date/time library, for tokio-postgres
+num_cpus = "1.16.0" # To get number of CPUs for DataFusion config
