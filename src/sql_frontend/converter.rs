@@ -6,6 +6,83 @@ use sqlparser::ast::{
     TableFactor as SqlTableFactor, TableWithJoins as SqlTableWithJoins, Value as SqlValue,
 };
 
+// Helper to get a string representation of the statement type
+fn get_statement_variant_name(statement: &SqlStatement) -> &'static str {
+    match statement {
+        SqlStatement::Query(_) => "Query",
+        SqlStatement::Insert { .. } => "Insert",
+        SqlStatement::Update { .. } => "Update",
+        SqlStatement::Delete { .. } => "Delete",
+        SqlStatement::CreateTable { .. } => "CreateTable",
+        SqlStatement::AlterTable { .. } => "AlterTable",
+        SqlStatement::Drop { .. } => "Drop",
+        SqlStatement::SetVariable { .. } => "SetVariable",
+        SqlStatement::ShowVariable { .. } => "ShowVariable",
+        SqlStatement::ShowVariables { .. } => "ShowVariables",
+        SqlStatement::ShowCollation { .. } => "ShowCollation",
+        SqlStatement::ShowColumns { .. } => "ShowColumns",
+        SqlStatement::ShowTables { .. } => "ShowTables",
+        SqlStatement::ShowCreate { .. } => "ShowCreate",
+        SqlStatement::ShowFunctions { .. } => "ShowFunctions",
+        SqlStatement::ShowCharset { .. } => "ShowCharset",
+        SqlStatement::Assert { .. } => "Assert",
+        SqlStatement::Explain { .. } => "Explain",
+        SqlStatement::ExplainTable { .. } => "ExplainTable",
+        SqlStatement::Analyze { .. } => "Analyze",
+        SqlStatement::Execute { .. } => "Execute",
+        SqlStatement::Declare { .. } => "Declare",
+        SqlStatement::Fetch { .. } => "Fetch",
+        SqlStatement::Close { .. } => "Close",
+        SqlStatement::Prepare { .. } => "Prepare",
+        SqlStatement::Deallocate { .. } => "Deallocate",
+        SqlStatement::SetRole { .. } => "SetRole",
+        SqlStatement::SetTimeZone { .. } => "SetTimeZone",
+        SqlStatement::SetTransaction { .. } => "SetTransaction",
+        SqlStatement::StartTransaction { .. } => "StartTransaction",
+        SqlStatement::Commit { .. } => "Commit",
+        SqlStatement::Rollback { .. } => "Rollback",
+        SqlStatement::CreateSchema { .. } => "CreateSchema",
+        SqlStatement::CreateView { .. } => "CreateView",
+        SqlStatement::CreateFunction { .. } => "CreateFunction",
+        SqlStatement::CreateProcedure { .. } => "CreateProcedure",
+        SqlStatement::CreateMacro { .. } => "CreateMacro",
+        SqlStatement::CreateStage { .. } => "CreateStage",
+        SqlStatement::CreateIndex { .. } => "CreateIndex",
+        SqlStatement::CreateVirtualTable { .. } => "CreateVirtualTable",
+        SqlStatement::CreateSequence { .. } => "CreateSequence",
+        SqlStatement::CreateType { .. } => "CreateType",
+        SqlStatement::CreateDomain { .. } => "CreateDomain",
+        SqlStatement::CreateExtension { .. } => "CreateExtension",
+        SqlStatement::Comment { .. } => "Comment",
+        SqlStatement::Grant { .. } => "Grant",
+        SqlStatement::Revoke { .. } => "Revoke",
+        SqlStatement::Discard { .. } => "Discard",
+        SqlStatement::AlterFunction { .. } => "AlterFunction",
+        SqlStatement::AlterIndex { .. } => "AlterIndex",
+        SqlStatement::AlterSchema { .. } => "AlterSchema",
+        SqlStatement::AlterView { .. } => "AlterView",
+        SqlStatement::AlterSequence { .. } => "AlterSequence",
+        SqlStatement::AlterType { .. } => "AlterType",
+        SqlStatement::AlterDomain { .. } => "AlterDomain",
+        SqlStatement::AlterExtension { .. } => "AlterExtension",
+        SqlStatement::AlterDatabase { .. } => "AlterDatabase",
+        SqlStatement::Copy { .. } => "Copy",
+        SqlStatement::AttachDatabase { .. } => "AttachDatabase",
+        SqlStatement::DetachDatabase { .. } => "DetachDatabase",
+        SqlStatement::Kill { .. } => "Kill",
+        SqlStatement::Merge { .. } => "Merge",
+        SqlStatement::Msck { .. } => "Msck",
+        SqlStatement::Savepoint { .. } => "Savepoint",
+        SqlStatement::Release { .. } => "Release",
+        SqlStatement::SetNames { .. } => "SetNames",
+        SqlStatement::SetSchema { .. } => "SetSchema",
+        SqlStatement::Truncate { .. } => "Truncate",
+        SqlStatement::Use { .. } => "Use",
+        SqlStatement::Values { .. } => "Values",
+        _ => "OtherStatement", // Generic fallback
+    }
+}
+
 // Helper to convert sqlparser::ast::Value to logical_plan::LiteralValue
 fn sql_value_to_logical_literal(sql_value: &SqlValue) -> Result<LiteralValue, String> {
     match sql_value {
@@ -175,8 +252,8 @@ pub fn ast_to_logical_plan(statement: &SqlStatement) -> Result<LogicalPlan, Stri
             }
         }
         _ => Err(format!(
-            "Unsupported SQL statement type: {:?}. Only Query statements are supported.",
-            statement
+            "Unsupported SQL statement type: {}. Only Query statements are supported.",
+            get_statement_variant_name(statement)
         )),
     }
 }
@@ -215,20 +292,20 @@ mod tests {
                     assert_eq!(op, Operator::Eq);
                     assert_eq!(*right, Expression::Literal(LiteralValue::Number("1".to_string())));
                 } else {
-                    panic!("Expected BinaryExpr for predicate");
+                    panic!("Expected BinaryExpr for predicate, got {:?}", predicate);
                 }
 
                 if let LogicalPlan::Scan { table_name, columns } = *filter_input {
                     assert_eq!(table_name, "users");
                     assert_eq!(columns, None); // Defaulting to None for now
                 } else {
-                    panic!("Expected Scan for filter input");
+                    panic!("Expected Scan for filter input, got {:?}", *filter_input);
                 }
             } else {
-                panic!("Expected Filter node");
+                panic!("Expected Filter node, got {:?}", *input);
             }
         } else {
-            panic!("Expected Projection node at the top");
+            panic!("Expected Projection node at the top, got {:?}", plan);
         }
     }
 
@@ -244,10 +321,10 @@ mod tests {
                 assert_eq!(table_name, "customers");
                 assert_eq!(columns, None);
             } else {
-                panic!("Expected Scan node for Projection input");
+                panic!("Expected Scan node for Projection input, got {:?}", *input);
             }
         } else {
-            panic!("Expected Projection node for SELECT *");
+            panic!("Expected Projection node for SELECT *, got {:?}", plan);
         }
     }
 
@@ -261,7 +338,7 @@ mod tests {
             assert_eq!(expressions[0], Expression::Alias { expr: Box::new(Expression::Column("name".to_string())), alias: "customer_name".to_string() });
             // Check input is Scan (can be added if necessary)
         } else {
-            panic!("Expected Projection node for SELECT with alias");
+            panic!("Expected Projection node for SELECT with alias, got {:?}", plan);
         }
     }
 
@@ -270,14 +347,10 @@ mod tests {
         let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice')";
         let result = parse_and_convert(sql);
         assert!(result.is_err());
-        // We need to adjust the expected error message to match the actual sqlparser output for Insert
-        // The exact formatting of the unsupported statement might be verbose.
-        // For now, let's check if it starts with "Unsupported SQL statement type: Insert"
-        if let Err(e) = result {
-            assert!(e.starts_with("Unsupported SQL statement type: Insert"), "Error message was: {}", e);
-        } else {
-            panic!("Expected error for unsupported statement");
-        }
+        assert_eq!(
+            result.unwrap_err(),
+            "Unsupported SQL statement type: Insert. Only Query statements are supported.".to_string()
+        );
     }
 
     #[test]
@@ -288,7 +361,7 @@ mod tests {
             assert_eq!(expressions.len(), 1);
             assert_eq!(expressions[0], Expression::Column("users.name".to_string()));
         } else {
-            panic!("Expected Projection node");
+            panic!("Expected Projection node, got {:?}", plan);
         }
     }
 
@@ -298,16 +371,18 @@ mod tests {
         let plan = parse_and_convert(sql).unwrap();
         if let LogicalPlan::Projection { input, .. } = plan {
             if let LogicalPlan::Filter { predicate, .. } = *input {
-                if let Expression::BinaryExpr { left, ..} = predicate {
+                if let Expression::BinaryExpr { left, op, right } = predicate {
                     assert_eq!(*left, Expression::Column("users.age".to_string()));
+                    assert_eq!(op, Operator::Gt);
+                    assert_eq!(*right, Expression::Literal(LiteralValue::Number("25".to_string())));
                 } else {
-                    panic!("Expected BinaryExpr for predicate");
+                        panic!("Expected BinaryExpr for predicate, got {:?}", predicate);
                 }
             } else {
-                panic!("Expected Filter node");
+                    panic!("Expected Filter node, got {:?}", *input);
             }
         } else {
-            panic!("Expected Projection node");
+                panic!("Expected Projection node, got {:?}", plan);
         }
     }
 }
