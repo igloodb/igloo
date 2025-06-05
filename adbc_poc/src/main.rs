@@ -1,19 +1,14 @@
-use libc::{c_char, c_int, c_void}; // int64_t and size_t are not directly used here
+use libc::{c_char, c_int, c_void};
 use std::ffi::{CStr, CString};
 use std::ptr;
 use std::mem;
 
 // ADBC Status Codes
 const ADBC_STATUS_OK: c_int = 0;
-// const ADBC_STATUS_ERROR: c_int = 1;
-// const ADBC_STATUS_INVALID_STATE: c_int = 6;
-// const ADBC_STATUS_INTERNAL: c_int = 9;
 
-
-// Opaque structs for ADBC handles (represented as empty enums for type safety)
+// Opaque structs for ADBC handles
 #[repr(C)] pub enum AdbcDatabase {}
 #[repr(C)] pub enum AdbcConnection {}
-// #[repr(C)] pub enum AdbcStatement {} // Not used in this PoC
 
 // AdbcError struct
 #[repr(C)]
@@ -26,12 +21,9 @@ pub struct AdbcError {
     private_driver: *mut c_void,
 }
 
-// Link against libadbc_driver_postgresql.so (from /usr/local/lib)
-// and libpq.so (system library)
 #[link(name = "adbc_driver_postgresql")]
 #[link(name = "pq")]
 extern "C" {
-    // Database functions
     fn AdbcDatabaseNew(database: *mut *mut AdbcDatabase, error: *mut AdbcError) -> c_int;
     fn AdbcDatabaseSetOption(
         database: *mut AdbcDatabase,
@@ -41,8 +33,6 @@ extern "C" {
     ) -> c_int;
     fn AdbcDatabaseInit(database: *mut AdbcDatabase, error: *mut AdbcError) -> c_int;
     fn AdbcDatabaseRelease(database: *mut AdbcDatabase, error: *mut AdbcError) -> c_int;
-
-    // Connection functions
     fn AdbcConnectionNew(connection: *mut *mut AdbcConnection, error: *mut AdbcError) -> c_int;
     fn AdbcConnectionInit(
         connection: *mut AdbcConnection,
@@ -60,7 +50,6 @@ fn main() {
     unsafe {
         println!("Attempting ADBC connection to PostgreSQL...");
 
-        // 1. Create a new database instance
         let mut status = AdbcDatabaseNew(&mut db, &mut error);
         if status != ADBC_STATUS_OK {
             handle_adbc_error("AdbcDatabaseNew", status, &mut error);
@@ -73,7 +62,6 @@ fn main() {
         }
         println!("AdbcDatabaseNew successful.");
 
-        // 2. Set URI option
         let uri_key = CString::new("uri").unwrap();
         let uri_val = CString::new("postgresql://postgres@localhost/igloo_test_db").unwrap();
 
@@ -85,7 +73,6 @@ fn main() {
         }
         println!("AdbcDatabaseSetOption (uri) successful.");
 
-        // 3. Initialize the database
         status = AdbcDatabaseInit(db, &mut error);
         if status != ADBC_STATUS_OK {
             handle_adbc_error("AdbcDatabaseInit", status, &mut error);
@@ -94,7 +81,6 @@ fn main() {
         }
         println!("AdbcDatabaseInit successful.");
 
-        // 4. Create a new connection instance
         status = AdbcConnectionNew(&mut conn, &mut error);
         if status != ADBC_STATUS_OK {
             handle_adbc_error("AdbcConnectionNew", status, &mut error);
@@ -109,7 +95,6 @@ fn main() {
         }
         println!("AdbcConnectionNew successful.");
 
-        // 5. Initialize the connection
         status = AdbcConnectionInit(conn, db, &mut error);
         if status != ADBC_STATUS_OK {
             handle_adbc_error("AdbcConnectionInit", status, &mut error);
@@ -119,7 +104,6 @@ fn main() {
         }
         println!("ADBC Connection to PostgreSQL successful!");
 
-        // 6. Release resources
         println!("Releasing connection...");
         status = AdbcConnectionRelease(conn, &mut error);
         if status != ADBC_STATUS_OK {
