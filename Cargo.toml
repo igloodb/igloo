@@ -17,3 +17,5 @@ libloading = "0.8"
 reqwest = { version = "0.12.15", features = ["blocking"] }
 adbc_core = { path = "adbc-rs/core", features = ["driver_manager"] }
 tokio-postgres = "0.7.13"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
