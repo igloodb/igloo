@@ -139,7 +139,16 @@ fn sql_expr_to_logical_expr(sql_expr: &SqlExpr) -> Result<Expression, String> {
                 right: logical_right,
             })
         }
-        // SqlExpr::IsNull(_) | SqlExpr::IsNotNull(_) | SqlExpr::InList {..} etc.
+        SqlExpr::Function(func) => {
+            Err(format!("Function expressions are not yet supported: {:?}", func))
+        }
+        SqlExpr::InList { expr, list, negated } => {
+            Err(format!(
+                "InList expressions (e.g., IN or NOT IN) are not yet supported: {:?}, {:?}, negated: {}",
+                expr, list, negated
+            ))
+        }
+        // SqlExpr::IsNull(_) | SqlExpr::IsNotNull(_) etc.
         _ => Err(format!("Unsupported SQL expression: {:?}", sql_expr)),
     }
 }
@@ -385,4 +394,66 @@ mod tests {
                 panic!("Expected Projection node, got {:?}", plan);
         }
     }
+
+   #[test]
+   fn test_unsupported_function_expression() {
+       let sql = "SELECT MYFUNC(column_a) FROM test_table";
+       let result = parse_and_convert(sql);
+       assert!(result.is_err(), "Expected an error for function expression, but got Ok: {:?}", result.ok());
+       let error_message = result.unwrap_err();
+       // The exact formatting of `Function { name: ..., args: ..., ... }` might be verbose.
+       // We need to ensure the error message starts correctly.
+       // Example: "Function expressions are not yet supported: Function { name: ObjectName([Ident { value: "MYFUNC", quote_style: None }]), args: [Identifier(Ident { value: "column_a", quote_style: None })], over: None, distinct: false, special: false, order_by: [] }"
+       // For robustness, let's check the start of the message.
+       assert!(
+           error_message.starts_with("Function expressions are not yet supported:"),
+           "Error message mismatch. Expected it to start with 'Function expressions are not yet supported:', but got: {}",
+           error_message
+       );
+       // Optionally, also check if it contains key info like the function name:
+       assert!(
+           error_message.contains("MYFUNC") && error_message.contains("column_a"),
+           "Error message for function did not contain expected function/argument names: {}",
+           error_message
+       );
+   }
+
+   #[test]
+   fn test_unsupported_inlist_expression() {
+       let sql = "SELECT column_a FROM test_table WHERE column_b IN (1, 'test_val')";
+       let result = parse_and_convert(sql);
+       assert!(result.is_err(), "Expected an error for IN LIST expression, but got Ok: {:?}", result.ok());
+       let error_message = result.unwrap_err();
+       // Example error: "InList expressions (e.g., IN or NOT IN) are not yet supported: Identifier(Ident { value: "column_b", quote_style: None }), [Value(Number("1", false)), Value(SingleQuotedString("test_val"))], negated: false"
+       assert!(
+           error_message.starts_with("InList expressions (e.g., IN or NOT IN) are not yet supported:"),
+           "Error message mismatch. Expected it to start with 'InList expressions ... not yet supported:', but got: {}",
+           error_message
+       );
+       // Check for key parts of the InList debug output
+       assert!(
+           error_message.contains("column_b") && error_message.contains("Number(\"1\", false)") && error_message.contains("SingleQuotedString(\"test_val\")") && error_message.contains("negated: false"),
+           "Error message for IN list did not contain expected components: {}",
+           error_message
+       );
+   }
+
+   #[test]
+   fn test_unsupported_notinlist_expression() {
+       let sql = "SELECT column_a FROM test_table WHERE column_b NOT IN (1, 2)";
+       let result = parse_and_convert(sql);
+       assert!(result.is_err(), "Expected an error for NOT IN LIST expression, but got Ok: {:?}", result.ok());
+       let error_message = result.unwrap_err();
+        // Example error: "InList expressions (e.g., IN or NOT IN) are not yet supported: Identifier(Ident { value: "column_b", quote_style: None }), [Value(Number("1", false)), Value(Number("2", false))], negated: true"
+       assert!(
+           error_message.starts_with("InList expressions (e.g., IN or NOT IN) are not yet supported:"),
+           "Error message mismatch. Expected it to start with 'InList expressions ... not yet supported:', but got: {}",
+           error_message
+       );
+       assert!(
+           error_message.contains("column_b") && error_message.contains("Number(\"1\", false)") && error_message.contains("Number(\"2\", false)") && error_message.contains("negated: true"),
+           "Error message for NOT IN list did not contain expected components: {}",
+           error_message
+       );
+   }
 }
