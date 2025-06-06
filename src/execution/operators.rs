@@ -252,7 +252,6 @@ mod tests {
     use arrow::array::{Int32Array, BooleanArray};
     use crate::execution::error::EngineError as ActualEngineError;
 
-    // Helper struct for tests requiring an operator with a specific schema, sometimes empty.
     #[derive(Debug)]
     struct MockInputOperator {
         schema: SchemaRef,
@@ -275,13 +274,19 @@ mod tests {
     fn scan_op_schema_fetch_error() {
         let mut scan_op = ScanOperator::new("non_existent_table");
         let res = scan_op.next();
-        assert!(res.is_err());
-        match res.err().unwrap() {
+        let actual_error = res.err().expect("Expected an error from scan_op.next()");
+
+        match actual_error {
             ActualEngineError::Adbc { message } => {
-                // AdbcError::FetchError formats to "ADBC Fetch Error: Table ... not found"
-                assert!(message.contains("ADBC Fetch Error: Table non_existent_table not found"), "Unexpected error message: {}", message);
+                let expected_substring = "ADBC Fetch Error: Table non_existent_table not found";
+                assert!(
+                    message.contains(expected_substring),
+                    "Error message '{}' did not contain expected substring '{}'",
+                    message,
+                    expected_substring
+                );
             }
-            other_err => panic!("Expected Adbc error, got {:?}", other_err),
+            other_err => panic!("Expected Adbc error, but got a different error: {:?}", other_err),
         }
     }
 
@@ -291,16 +296,23 @@ mod tests {
         let faulty_predicate: FilterPredicate = Box::new(|_batch: &RecordBatch| {
             Err(ArrowError::ComputeError("Predicate failure".to_string()))
         });
-        // Prime scan_op so FilterOperator::new gets a valid schema
         let _ = prime_scan_op_schema(&mut scan_op).expect("Priming failed");
         let mut filter_op = FilterOperator::new(Box::new(scan_op), faulty_predicate).unwrap();
         let res = filter_op.next();
-        assert!(res.is_err());
-        match res.err().unwrap() {
+        let actual_error = res.err().expect("Expected an error from filter_op.next()");
+
+        match actual_error {
             ActualEngineError::Arrow { source } => {
-                assert!(matches!(source, ArrowError::ComputeError(msg) if msg == "Predicate failure"));
+                assert!(
+                    matches!(
+                        &source,
+                        ArrowError::ComputeError(msg) if msg == "Predicate failure"
+                    ),
+                    "Unexpected ArrowError variant or message. Expected ComputeError with 'Predicate failure', got: {:?}",
+                    source
+                );
             }
-            other_err => panic!("Expected Arrow ComputeError, got {:?}", other_err),
+            other_err => panic!("Expected EngineError::Arrow with ComputeError, but got a different error: {:?}", other_err),
         }
     }
 
@@ -311,12 +323,17 @@ mod tests {
         let input_op = Box::new(MockInputOperator { schema: empty_schema });
 
         let proj_op_res = ProjectionOperator::new(input_op, vec![0, 2]);
-        assert!(proj_op_res.is_err());
-        match proj_op_res.err().unwrap() {
+        let actual_error = proj_op_res.err().expect("Expected ProjectionOperator::new to fail");
+
+        match actual_error {
             ActualEngineError::Projection { message } => {
-                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
+                assert_eq!(
+                    message,
+                    "Cannot project specific columns (non-empty projection_indices) from an empty input schema.",
+                    "Unexpected error message for projection from empty schema."
+                );
             }
-            other_err => panic!("Unexpected error variant or message: {:?}", other_err),
+            other_err => panic!("Expected Projection error, but got a different error: {:?}", other_err),
         }
     }
 
@@ -324,12 +341,17 @@ mod tests {
     fn projection_operator_new_from_unprimed_scan_op_fails_as_expected() {
         let scan_op = ScanOperator::new("test_table");
         let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 2]);
-        assert!(proj_op_res.is_err());
-        match proj_op_res.err().unwrap() {
+        let actual_error = proj_op_res.err().expect("Expected ProjectionOperator::new to fail");
+
+        match actual_error {
             ActualEngineError::Projection { message } => {
-                assert_eq!(message, "Cannot project specific columns (non-empty projection_indices) from an empty input schema.");
+                assert_eq!(
+                    message,
+                    "Cannot project specific columns (non-empty projection_indices) from an empty input schema.",
+                    "Unexpected error message for projection from unprimed scan."
+                );
             }
-            other_err => panic!("Unexpected error variant or message: {:?}", other_err),
+            other_err => panic!("Expected Projection error, but got a different error: {:?}", other_err),
         }
     }
 
@@ -339,12 +361,18 @@ mod tests {
         let _ = prime_scan_op_schema(&mut scan_op).unwrap();
 
         let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![0, 1]);
-        assert!(proj_op_res.is_err());
-        match proj_op_res.err().unwrap() {
+        let actual_error = proj_op_res.err().expect("Expected ProjectionOperator::new to fail");
+
+        match actual_error {
             ActualEngineError::Projection { message } => {
-                assert_eq!(message, "Projection index 1 is out of bounds for input schema with 1 fields.");
+                let expected_message = "Projection index 1 is out of bounds for input schema with 1 fields.";
+                assert_eq!(
+                    message,
+                    expected_message,
+                    "Unexpected error message for out of bounds index."
+                );
             }
-            other_err => panic!("Unexpected error variant or message: {:?}", other_err),
+            other_err => panic!("Expected Projection error, but got a different error: {:?}", other_err),
         }
     }
 
@@ -354,7 +382,7 @@ mod tests {
         let input_op = Box::new(MockInputOperator { schema: empty_schema });
 
         let proj_op_res = ProjectionOperator::new(input_op, vec![]);
-        assert!(proj_op_res.is_ok());
+        assert!(proj_op_res.is_ok(), "Projection with empty indices from empty schema should succeed.");
         let proj_op = proj_op_res.unwrap();
         assert!(proj_op.schema().unwrap().fields().is_empty());
         assert!(proj_op.projection_indices.is_empty());
@@ -366,7 +394,7 @@ mod tests {
         let _ = prime_scan_op_schema(&mut scan_op).unwrap();
 
         let proj_op_res = ProjectionOperator::new(Box::new(scan_op), vec![]);
-        assert!(proj_op_res.is_ok());
+        assert!(proj_op_res.is_ok(), "Projection with empty indices from non-empty schema should succeed.");
         let proj_op = proj_op_res.unwrap();
         assert!(proj_op.schema().unwrap().fields().is_empty());
         assert!(proj_op.projection_indices.is_empty());
