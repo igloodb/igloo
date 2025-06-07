@@ -32,3 +32,13 @@ icu_properties = "1.2.0" # Pinning version for Rust 1.75.0 compatibility (relate
 native-tls = "0.2.11" # Pinning version for Rust 1.75.0 compatibility (related to reqwest)
 icu_normalizer = "1.2.0" # Pinning version for Rust 1.75.0 compatibility (related to chrono-tz)
 icu_locid = "1.2.0" # Pinning version for Rust 1.75.0 compatibility (related to chrono-tz)
+tonic = "0.11"
+prost = "0.12"
+uuid = { version = "1.6", features = ["v4"] }
+
+[build-dependencies]
+tonic-build = "0.11"
+
+[[bin]]
+name = "igloo-worker"
+path = "src/bin/igloo-worker.rs"

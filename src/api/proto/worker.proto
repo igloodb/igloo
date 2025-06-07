@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package igloo.worker;
+
+// Service exposed by workers
+service Worker {
+  rpc ExecuteTask (TaskDefinition) returns (TaskResult);
+}
+
+message TaskDefinition {
+  string task_id = 1;
+  bytes plan = 2; // Serialized ExecutionPlan fragment for the task
+  uint32 partition_id = 3; // For tasks that are part of a partitioned stage
+  // map<string, string> options = 4; // Optional: For future extensions like shuffle IDs, etc.
+}
+
+message TaskResult {
+  string task_id = 1;
+  bool success = 2;
+  bytes data = 3; // Serialized RecordBatches (e.g., Arrow IPC format)
+  string message = 4; // Error message if success is false, or info message
+}
